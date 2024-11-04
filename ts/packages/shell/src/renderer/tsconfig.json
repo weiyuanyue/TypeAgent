@@ -2,5 +2,7 @@
     "extends": "../../tsconfig.web.json",
     "compilerOptions": {
         "composite": true,
+        "module": "es2015",
+        "lib": ["ES2015", "DOM"]
     },
 }
