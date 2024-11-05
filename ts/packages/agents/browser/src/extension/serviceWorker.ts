@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { WebSocketMessage } from "common-utils";
+import { WebSocketMessage } from "../../../../commonUtils/dist/indexBrowser";
 
 async function getConfigValues(): Promise<Record<string, string>> {
     const envLocation = chrome.runtime.getURL(".env");
@@ -767,6 +767,7 @@ async function toggleSiteTranslator(targetTab: chrome.tabs.Tab) {
             "www.homedepot.com",
             "www.target.com",
             "www.walmart.com",
+            "www.instacart.com",
         ];
 
         if (commerceHosts.includes(host)) {
@@ -1203,10 +1204,6 @@ async function runBrowserAction(action: any) {
         }
         case "getConfiguration": {
             responseObject = await getConfigValues();
-            break;
-        }
-        case "unknown": {
-            confirmationMessage = `Did not understand the request "${action.parameters.text}"`;
             break;
         }
     }

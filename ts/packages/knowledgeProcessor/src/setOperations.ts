@@ -114,10 +114,9 @@ export function unionMultiple<T>(
     return combined ?? [];
 }
 
-export function* unionScored<T = any>(
+export function* unionScored<T>(
     xArray: Iterator<ScoredItem<T>> | Array<ScoredItem<T>>,
     yArray: Iterator<ScoredItem<T>> | Array<ScoredItem<T>>,
-    comparer: (x: T, y: T) => number,
 ): IterableIterator<ScoredItem<T>> {
     const x: Iterator<ScoredItem<T>> = Array.isArray(xArray)
         ? xArray.values()
@@ -129,15 +128,15 @@ export function* unionScored<T = any>(
     let yVal = y.next();
 
     while (!xVal.done && !yVal.done) {
-        const cmp = comparer(xVal.value.item, yVal.value.item);
-        if (cmp === 0) {
-            // If both are equal, yield the one with the higher score
+        // TODO: replace with a comparer: currently for strings, this is 2 comparisons
+        if (xVal.value.item === yVal.value.item) {
+            // If both are equal, yield the one with a higher score
             yield xVal.value.score >= yVal.value.score
                 ? xVal.value
                 : yVal.value;
             xVal = x.next();
             yVal = y.next();
-        } else if (cmp < 0) {
+        } else if (xVal.value < yVal.value) {
             yield xVal.value;
             xVal = x.next();
         } else {
@@ -166,7 +165,7 @@ export function unionMultipleScored<T>(
     let combined: any | undefined;
     for (const array of arrays) {
         if (array) {
-            combined = combined ? union(combined, array) : array;
+            combined = combined ? unionScored(combined, array) : array;
         }
     }
     return combined ?? [];
@@ -396,6 +395,7 @@ export interface HitTable<T> {
 
 export function createHitTable<T>(
     keyAccessor?: (value: T) => any,
+    fixedScore?: number | undefined,
 ): HitTable<T> {
     const map = new Map<any, ScoredItem<T>>();
     return {
@@ -431,7 +431,7 @@ export function createHitTable<T>(
     }
 
     function add(value: T, score?: number | undefined): number {
-        score ??= 1.0;
+        score = fixedScore ? fixedScore : score ?? 1.0;
         const key = getKey(value);
         let scoredItem = map.get(key);
         if (scoredItem) {
@@ -497,6 +497,10 @@ export function createHitTable<T>(
     // TODO: Optimize.
     function getTopK(k: number): T[] {
         const topItems = byHighestScore();
+        if (k === map.size) {
+            return topItems.map((i) => i.item);
+        }
+
         const topK: T[] = [];
         if (k < 1 || topItems.length === 0) {
             return topK;

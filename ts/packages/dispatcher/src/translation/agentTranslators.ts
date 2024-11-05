@@ -1,14 +1,18 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { createJsonTranslatorFromSchemaDef } from "common-utils";
+import {
+    CachedImageWithDetails,
+    createJsonTranslatorFromSchemaDef,
+    enableJsonTranslatorStreaming,
+} from "common-utils";
 import {
     AppAction,
     TranslatorDefinition,
     SchemaDefinition,
     AppAgentManifest,
 } from "@typeagent/agent-sdk";
-import { TypeChatJsonTranslator } from "typechat";
+import { Result } from "typechat";
 import { getPackageFilePath } from "../utils/getPackageFilePath.js";
 import { getMultipleActionSchemaDef } from "./multipleActionSchema.js";
 import { TranslatorSchemaDef, composeTranslatorSchemas } from "common-utils";
@@ -16,6 +20,9 @@ import { TranslatorSchemaDef, composeTranslatorSchemas } from "common-utils";
 import registerDebug from "debug";
 import { getBuiltinAppAgentConfigs } from "../agent/agentConfig.js";
 import { loadTranslatorSchemaConfig } from "../utils/loadSchemaConfig.js";
+import { HistoryContext } from "agent-cache";
+import { createTypeAgentRequestPrompt } from "../handlers/common/chatHistoryPrompt.js";
+import { IncrementalJsonValueCallBack } from "../../../commonUtils/dist/incrementalJsonParser.js";
 
 const debugConfig = registerDebug("typeagent:translator:config");
 
@@ -30,7 +37,6 @@ export type TranslatorConfig = {
 
 export interface TranslatorConfigProvider {
     getTranslatorConfig(translatorName: string): TranslatorConfig;
-    getTranslatorNames(): string[];
     getTranslatorConfigs(): [string, TranslatorConfig][];
 }
 
@@ -126,9 +132,6 @@ export function getBuiltinTranslatorConfigProvider(): TranslatorConfigProvider {
             }
             return config;
         },
-        getTranslatorNames() {
-            return Object.keys(translatorConfigs);
-        },
         getTranslatorConfigs() {
             return Object.entries(translatorConfigs);
         },
@@ -145,11 +148,6 @@ export function loadBuiltinTranslatorSchemaConfig(translatorName: string) {
 export function getAppAgentName(translatorName: string) {
     return translatorName.split(".")[0];
 }
-
-// A list of translator factory methods, keyed by the config.SchemaType name
-const translatorFactories: {
-    [key: string]: (config: TranslatorConfig) => TypeChatJsonTranslator<Object>;
-} = {};
 
 const changeAssistantActionTypeName = "ChangeAssistantAction";
 const changeAssistantActionName = "changeAssistantAction";
@@ -274,6 +272,7 @@ function getInjectedSchemaDefs(
     if (multipleActionSchemaDef) {
         injectedSchemaDefs.push(multipleActionSchemaDef);
     }
+
     return injectedSchemaDefs;
 }
 
@@ -296,6 +295,15 @@ function getTranslatorSchemaDefs(
     ];
 }
 
+export type TypeAgentTranslator<T = object> = {
+    translate: (
+        request: string,
+        history?: HistoryContext,
+        attachments?: CachedImageWithDetails[],
+        cb?: IncrementalJsonValueCallBack,
+    ) => Promise<Result<T>>;
+};
+
 /**
  *
  * @param translatorName name to get the translator for.
@@ -303,21 +311,17 @@ function getTranslatorSchemaDefs(
  * @param multipleActions Add the multiple action schema if true. Default to false.
  * @returns
  */
-export function loadAgentJsonTranslator(
+export function loadAgentJsonTranslator<T extends object = object>(
     translatorName: string,
     provider: TranslatorConfigProvider,
     model?: string,
     activeTranslators?: { [key: string]: boolean },
     multipleActions: boolean = false,
-) {
+): TypeAgentTranslator<T> {
     // See if we have a registered factory method for this translator
     const translatorConfig = provider.getTranslatorConfig(translatorName);
-    const factory = translatorFactories[translatorConfig.schemaType];
-    if (factory) {
-        return factory(translatorConfig);
-    }
 
-    return createJsonTranslatorFromSchemaDef(
+    const translator = createJsonTranslatorFromSchemaDef<T>(
         "AllActions",
         getTranslatorSchemaDefs(
             translatorConfig,
@@ -330,6 +334,40 @@ export function loadAgentJsonTranslator(
         undefined,
         model,
     );
+
+    const streamingTranslator = enableJsonTranslatorStreaming(translator);
+
+    // the request prompt is already expanded by the override replacement below
+    // So just return the request as is.
+    streamingTranslator.createRequestPrompt = (request: string) => {
+        return request;
+    };
+
+    const typeAgentTranslator = {
+        translate: async (
+            request: string,
+            history?: HistoryContext,
+            attachments?: CachedImageWithDetails[],
+            cb?: IncrementalJsonValueCallBack,
+        ) => {
+            // Expand the request prompt up front with the history and attachments
+            const requestPrompt = createTypeAgentRequestPrompt(
+                streamingTranslator,
+                request,
+                history,
+                attachments,
+            );
+
+            return streamingTranslator.translate(
+                requestPrompt,
+                history?.promptSections,
+                cb,
+                attachments,
+            );
+        },
+    };
+
+    return typeAgentTranslator;
 }
 
 // For CLI, replicate the behavior of loadAgentJsonTranslator to get the schema
@@ -340,9 +378,6 @@ export function getFullSchemaText(
     multipleActions: boolean,
 ) {
     const translatorConfig = provider.getTranslatorConfig(translatorName);
-    if (translatorFactories[translatorConfig.schemaType] !== undefined) {
-        throw new Error("Can't get schema for customfactory");
-    }
     const schemaDefs = getTranslatorSchemaDefs(
         translatorConfig,
         translatorName,

@@ -36,7 +36,7 @@ export class ExpandableTextarea {
         sendButton?: HTMLButtonElement,
     ) {
         this.entryHandlers = handlers;
-        this.textEntry = document.createElement("textarea");
+        this.textEntry = document.createElement("span");
         this.textEntry.className = className;
         this.textEntry.contentEditable = "true";
         this.textEntry.role = "textbox";
@@ -107,7 +107,11 @@ export class ExpandableTextarea {
         }
     }
 
-    appendTextAtCursor(text: string) {
+    replaceTextAtCursor(
+        text: string,
+        cursorOffset: number = 0,
+        length: number = 0,
+    ) {
         const s = document.getSelection();
         if (s) {
             if (s.rangeCount > 1) {
@@ -118,12 +122,14 @@ export class ExpandableTextarea {
                 return;
             }
             if (currentRange.startContainer === this.textEntry.childNodes[0]) {
-                const prefix = this.textEntry.innerText.substring(
-                    0,
-                    currentRange.startOffset,
-                );
+                const currentText = this.textEntry.innerText;
+                let offset = currentRange.startOffset + cursorOffset;
+                if (offset < 0 || offset > currentText.length) {
+                    return;
+                }
+                const prefix = this.textEntry.innerText.substring(0, offset);
                 const suffix = this.textEntry.innerText.substring(
-                    currentRange.startOffset,
+                    offset + length,
                 );
                 this.textEntry.innerText = prefix + text + suffix;
 
@@ -203,8 +209,8 @@ export class ChatInput {
     private fileInput: HTMLInputElement;
     public dragEnabled: boolean = true;
     sendButton: HTMLButtonElement;
-    private separator: HTMLDivElement;
-    private separatorContainer: HTMLDivElement;
+    // private separator: HTMLDivElement;
+    // private separatorContainer: HTMLDivElement;
     constructor(
         inputId: string,
         buttonId: string,
@@ -216,7 +222,8 @@ export class ChatInput {
         this.inputContainer.className = "chat-input";
         this.sendButton = document.createElement("button");
         this.sendButton.appendChild(iconSend());
-        this.sendButton.className = "chat-input-button";
+        this.sendButton.className = "chat-send-button";
+        this.sendButton.type = "submit";
         this.sendButton.onclick = () => {
             this.textarea.send();
         };
@@ -224,7 +231,7 @@ export class ChatInput {
         const self = this;
         this.textarea = new ExpandableTextarea(
             inputId,
-            "user-textarea",
+            "user-textarea"
             {
                 onSend: messageHandler,
                 onChange,
@@ -308,6 +315,7 @@ export class ChatInput {
         this.micButton.appendChild(iconMicrophone());
         this.micButton.id = buttonId;
         this.micButton.className = "chat-input-button";
+        this.micButton.type = "button";
         this.micButton.addEventListener("click", async () => {
             const useLocalWhisper =
                 await getClientAPI().getLocalWhisperStatus();
@@ -340,7 +348,7 @@ export class ChatInput {
         this.camButton = document.createElement("button");
         this.camButton.appendChild(iconCamera());
         this.camButton.className = "chat-input-button";
-
+        this.camButton.type = "button";
         this.attachButton = document.createElement("label");
         this.attachButton.htmlFor = this.fileInput.id;
         this.attachButton.appendChild(iconAttach());
@@ -358,18 +366,10 @@ export class ChatInput {
             }
         });
 
-        // this.separatorContainer = document.createElement("div");
-        // this.separatorContainer.className =
-        //     "chat-input-button chat-input-separator-container";
-        // this.separator = document.createElement("div");
-        // this.separator.className = "chat-input-separator";
-        // this.separatorContainer.append(this.separator);
-
         this.inputContainer.appendChild(this.textarea.getTextEntry());
         this.inputContainer.appendChild(this.attachButton);
         this.inputContainer.appendChild(this.camButton);
         this.inputContainer.appendChild(this.micButton);
-        // this.inputContainer.appendChild(this.separatorContainer);
         this.inputContainer.appendChild(this.sendButton);
     }
 
@@ -422,7 +422,9 @@ export class ChatInput {
     }
     onBlur() {
         if (this.textarea.getTextEntry().innerText?.length === 0) {
-            this.getInputContainer()?.classList.remove("chat-input-focus");
+            setTimeout(() => {
+                this.getInputContainer()?.classList.remove("chat-input-focus");
+            }, 500);
         }
     }
 

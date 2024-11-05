@@ -13,12 +13,13 @@ import {
     normalizeInPlace,
     writeBlobFile,
     generateNotesForWebPage,
-    createSemanticList,
     collections,
+    readAllText,
+    dotProductSimple,
 } from "typeagent";
 import * as path from "path";
 import { getData } from "typechat";
-//import { testStringTables } from "./testSql.js";
+import { StopWatch } from "interactive-app";
 //import { runKnowledgeTests } from "./knowledgeTests.js";
 
 export function func1(x: number, y: number, op: string): number {
@@ -75,9 +76,23 @@ export async function testEmbedding2() {
 }
 
 export async function testEmbeddingModel() {
+    const stopWatch = new StopWatch();
     const model = openai.createEmbeddingModel();
-    const result = await model.generateEmbedding("lunch meeting");
+
+    stopWatch.start();
+    let result = await model.generateEmbedding("lunch meeting");
+    stopWatch.stop();
     console.log(result.success);
+    console.log(stopWatch.elapsedMs);
+
+    for (let i = 0; i < 3; ++i) {
+        const medText = await readAllText("/data/test/medText.txt");
+        stopWatch.start();
+        result = await model.generateEmbedding(medText);
+        stopWatch.stop();
+        console.log(result.success);
+        console.log(stopWatch.elapsedMs);
+    }
 
     const strings = [
         "lunch meeting",
@@ -92,14 +107,6 @@ export async function testEmbeddingModel() {
             console.log("Success");
         }
     }
-
-    const list = createSemanticList<string>(model, undefined, (value) => value);
-    for (const str of strings) {
-        await list.push(str);
-    }
-
-    const match = await list.nearestNeighbor("pizza");
-    console.log(match);
 }
 
 export function generateMessageLines(count: number): string[] {
@@ -111,14 +118,14 @@ export function generateMessageLines(count: number): string[] {
 }
 
 export async function summarize() {
-    const text = await fs.promises.readFile("C:/data/longText.txt", {
+    const text = await fs.promises.readFile("C:/data/test/longText.txt", {
         encoding: "utf-8",
     });
     console.log(chalk.greenBright(`Total:${text.length}\n`));
     const result = await generateNotes(
         text,
         2048,
-        openai.createChatModel(),
+        openai.createChatModelDefault("chatTests"),
         (chunk, text) => {
             console.log(chalk.greenBright(`${text.length} of ${chunk.length}`));
             console.log("Output\n\n" + text + "\n");
@@ -128,7 +135,7 @@ export async function summarize() {
 }
 
 export async function testBingSummary() {
-    const model = openai.createChatModel();
+    const model = openai.createChatModelDefault("chatTests");
     const results = await bing.searchWeb("Sherlock Holmes", 3);
     for (const result of results) {
         let chunkNumber = 0;
@@ -181,8 +188,69 @@ export async function runTestCases(): Promise<void> {
     // await testFetch();
 }
 
+export function testDotPerf() {
+    const x = generateRandomEmbedding(1536);
+    const y = generateRandomEmbedding(1536);
+    const count = 1000;
+
+    if (dotProduct(x, y) !== dotProductSimple(x, y)) {
+        console.log("Bug");
+        return;
+    }
+    let sum = 0;
+    console.log("==dot==");
+    console.time("dot");
+    for (let i = 0; i < count; ++i) {
+        sum += dotProduct(x, y);
+    }
+    console.timeEnd("dot");
+    console.log(sum);
+
+    sum = 0;
+    console.log("==dotSimple==");
+    console.time("dotSimple");
+    for (let i = 0; i < count; ++i) {
+        sum += dotProductSimple(x, y);
+    }
+    console.timeEnd("dotSimple");
+    console.log(sum);
+}
+
+export function testDotPerf2(size: number) {
+    const x = generateRandomEmbedding(size);
+    let vectors: NormalizedEmbedding[] = [];
+    for (let i = 0; i <= 1000; ++i) {
+        vectors.push(generateRandomEmbedding(size));
+    }
+
+    let len = vectors.length;
+    console.log(`RUNNING ${len} vectors`);
+    console.log("==dot==");
+    console.time("dot");
+    let sum = 0;
+    for (let i = 0; i < len; ++i) {
+        sum += dotProduct(x, vectors[i]);
+    }
+    console.timeEnd("dot");
+    console.log(sum);
+    console.log("==dotSimple==");
+
+    sum = 0;
+    console.time("dotSimple");
+    for (let i = 0; i < len; ++i) {
+        sum += dotProductSimple(x, vectors[i]);
+    }
+    console.timeEnd("dotSimple");
+    console.log(sum);
+}
+
+export async function testPerf() {
+    testDotPerf();
+    testDotPerf2(1536);
+}
 export async function runTests(): Promise<void> {
-    //await testStringTables();
+    //await testEmbeddingModel();
     //await runTestCases();
     // await runKnowledgeTests();
+    await testPerf();
 }

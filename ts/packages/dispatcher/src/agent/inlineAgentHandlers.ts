@@ -8,6 +8,8 @@ import {
     AppAction,
     ActionContext,
     ParsedCommandParams,
+    SessionContext,
+    PartialParsedCommandParams,
 } from "@typeagent/agent-sdk";
 import {
     CommandHandler,
@@ -23,13 +25,10 @@ import { executeConfigAction } from "../action/system/configActionHandler.js";
 import { CommandHandlerContext } from "../handlers/common/commandHandlerContext.js";
 import { getConfigCommandHandlers } from "../handlers/configCommandHandlers.js";
 import { getConstructionCommandHandlers } from "../handlers/constructionCommandHandlers.js";
-import { CorrectCommandHandler } from "../handlers/correctCommandHandler.js";
 import { DebugCommandHandler } from "../handlers/debugCommandHandlers.js";
-import { ExplainCommandHandler } from "../handlers/explainCommandHandler.js";
 import { getSessionCommandHandlers } from "../handlers/sessionCommandHandlers.js";
 import { getHistoryCommandHandlers } from "../handlers/historyCommandHandler.js";
 import { TraceCommandHandler } from "../handlers/traceCommandHandler.js";
-import { TranslateCommandHandler } from "../handlers/translateCommandHandler.js";
 import { getRandomCommandHandlers } from "../handlers/randomCommandHandler.js";
 import { getNotifyCommandHandlers } from "../handlers/notifyCommandHandler.js";
 import { processRequests } from "../utils/interactive.js";
@@ -40,13 +39,25 @@ import {
     processCommandNoLock,
     resolveCommand,
 } from "../dispatcher/command.js";
-import { RequestCommandHandler } from "../handlers/requestCommandHandler.js";
 import { DisplayCommandHandler } from "../handlers/displayCommandHandler.js";
 import { getHandlerTableUsage, getUsage } from "../dispatcher/commandHelp.js";
 import {
+    getActionCompletion,
     getSystemTemplateCompletion,
     getSystemTemplateSchema,
 } from "../translation/actionTemplate.js";
+import { getTokenCommandHandlers } from "../handlers/tokenCommandHandler.js";
+import { Actions } from "agent-cache";
+import {
+    getActionInfo,
+    getParameterNames,
+    getParameterType,
+    getTranslatorActionInfos,
+    validateAction,
+} from "../translation/actionInfo.js";
+import { executeActions } from "../action/actionHandlers.js";
+import { getObjectProperty } from "common-utils";
+import { dispatcherAgent } from "../dispatcher/dispatcherAgent.js";
 
 function executeSystemAction(
     action: AppAction,
@@ -152,19 +163,148 @@ class RunCommandScriptHandler implements CommandHandler {
     }
 }
 
-const dispatcherHandlers: CommandHandlerTable = {
-    description: "Type Agent Dispatcher Commands",
-    commands: {
-        request: new RequestCommandHandler(),
-        translate: new TranslateCommandHandler(),
-        explain: new ExplainCommandHandler(),
-        correct: new CorrectCommandHandler(),
-    },
-};
+class ActionCommandHandler implements CommandHandler {
+    public readonly description = "Execute an action";
+    public readonly parameters = {
+        args: {
+            translatorName: {
+                description: "Action translator name",
+            },
+            actionName: {
+                description: "Action name",
+            },
+        },
+        flags: {
+            parameters: {
+                description: "Action parameter",
+                optional: true,
+                type: "json",
+            },
+        },
+    } as const;
+    public async run(
+        context: ActionContext<CommandHandlerContext>,
+        params: ParsedCommandParams<typeof this.parameters>,
+    ) {
+        const systemContext = context.sessionContext.agentContext;
+        const { translatorName, actionName } = params.args;
+        const config = systemContext.agents.getTranslatorConfig(translatorName);
+        const actionInfos = getTranslatorActionInfos(config, translatorName);
+        const actionInfo = actionInfos.get(actionName);
+        if (actionInfo === undefined) {
+            throw new Error(
+                `Invalid action name ${actionName} for translator ${translatorName}`,
+            );
+        }
+
+        const action = {
+            translatorName,
+            actionName,
+            parameters: (params.flags.parameters as any) ?? {},
+        };
+
+        validateAction(actionInfo, action, true);
+        return executeActions(Actions.fromFullActions([action]), context);
+    }
+    public async getCompletion(
+        context: SessionContext<CommandHandlerContext>,
+        params: PartialParsedCommandParams<typeof this.parameters>,
+        names: string[],
+    ): Promise<string[]> {
+        const systemContext = context.agentContext;
+        const completions: string[] = [];
+        for (const name of names) {
+            if (name === "translatorName") {
+                const translators = systemContext.agents.getActiveTranslators();
+                completions.push(...translators);
+                continue;
+            }
+
+            if (name === "actionName") {
+                const translatorName = params.args?.translatorName;
+                if (translatorName === undefined) {
+                    continue;
+                }
+                const config =
+                    systemContext.agents.tryGetTranslatorConfig(translatorName);
+
+                if (config === undefined) {
+                    continue;
+                }
+                const actionInfos = getTranslatorActionInfos(
+                    config,
+                    translatorName,
+                );
+
+                completions.push(...actionInfos.keys());
+                continue;
+            }
+
+            if (name === "--parameters.") {
+                // complete the flag name for json properties
+                const action = {
+                    translatorName: params.args?.translatorName,
+                    actionName: params.args?.actionName,
+                    parameters: params.flags?.parameters,
+                };
+                const actionInfo = getActionInfo(action, systemContext);
+                if (actionInfo === undefined) {
+                    continue;
+                }
+                const data = { action };
+                const getCurrentValue = (name: string) =>
+                    getObjectProperty(data, "action", name);
+                const parameterNames = getParameterNames(
+                    actionInfo,
+                    getCurrentValue,
+                );
+                completions.push(
+                    ...parameterNames
+                        .filter((p) => getCurrentValue(p) === undefined)
+                        .map((p) => `--${p}`),
+                );
+                continue;
+            }
+
+            if (name.startsWith("--parameters.")) {
+                // complete the flag values for json properties
+
+                const action = {
+                    translatorName: params.args?.translatorName,
+                    actionName: params.args?.actionName,
+                    parameters: params.flags?.parameters,
+                };
+
+                const actionInfo = getActionInfo(action, systemContext);
+                if (actionInfo === undefined) {
+                    continue;
+                }
+                const propertyName = name.substring(2);
+                const fieldType = getParameterType(actionInfo, propertyName);
+                if (fieldType?.type === "string-union") {
+                    completions.push(...fieldType.typeEnum);
+                    continue;
+                }
+
+                completions.push(
+                    ...(await getActionCompletion(
+                        systemContext,
+                        action as Partial<AppAction>,
+                        propertyName,
+                    )),
+                );
+
+                continue;
+            }
+        }
+        return completions;
+    }
+}
 
 const systemHandlers: CommandHandlerTable = {
     description: "Type Agent System Commands",
     commands: {
+        action: new ActionCommandHandler(),
         session: getSessionCommandHandlers(),
         history: getHistoryCommandHandlers(),
         const: getConstructionCommandHandlers(),
@@ -191,13 +331,12 @@ const systemHandlers: CommandHandlerTable = {
         },
         random: getRandomCommandHandlers(),
         notify: getNotifyCommandHandlers(),
+        token: getTokenCommandHandlers(),
     },
 };
 
 const inlineHandlers: { [key: string]: AppAgent } = {
-    dispatcher: {
-        ...getCommandInterface(dispatcherHandlers),
-    },
+    dispatcher: dispatcherAgent,
     system: {
         getTemplateSchema: getSystemTemplateSchema,
         getTemplateCompletion: getSystemTemplateCompletion,

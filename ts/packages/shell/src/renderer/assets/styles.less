@@ -9,8 +9,8 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  font-size: 14px;
+  font-family: Ginto, ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", Segoe UI Symbol, "Noto Color Emoji";
+  font-size: 12px;
 }
 * {
   box-sizing: border-box;
@@ -138,7 +138,8 @@ body {
   font-family: inherit;
   font-size: inherit;
   // background-color: @chat-bg;
-  padding: 25px 10px 25px 10px;
+  // background-image: linear-gradient(180deg,#f8f4f2 50%,#fdedde);
+  // padding: 25px 10px 25px 10px;
 }
 
 .track-list {
@@ -183,12 +184,13 @@ body {
   max-width: min(100%, 46.5rem);
   box-shadow: rgba(0, 0, 0, 0.18) 0px 10px 24px 0px, rgb(255, 255, 255) 0px 0px 0px 1px inset;
   margin-bottom: 32px;
+  transition: .3s all ease;
 }
 
 .chat-input-focus {
-
   width: calc(100% - 40px);
 }
+
 
 .chat-input-drag {
   color: #cccccc;
@@ -232,18 +234,24 @@ body {
 .chat-message-user {
   .chat-message-body;
   position: relative;
-  background-color: lavender;
+  background-color: #ffd2a780;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+    padding-top: .75rem;
+    padding-bottom: .75rem;
+    border-radius: 1rem;
 }
 
 .chat-message-agent {
   left: 30px;
   position: relative;
-  background-color: #d6f3ff;
+  // background-color: #d6f3ff;
 }
 
 /* Content */
 .chat-message-content {
-  padding: 6px 15px 6px 15px;
+  // padding: 6px 15px 6px 15px;
+  font-size: 17px;
   word-wrap: break-word;
 }
 
@@ -287,6 +295,8 @@ body {
 
 .chat-message-metrics-user {
   .chat-message-metrics;
+  margin-left: -1.25rem;
+  margin-top: 10px;
   background-color: rgb(150, 150, 202);
 }
 
@@ -409,7 +419,7 @@ body {
 }
 
 .chat-input-button {
-  background-color: transparent;
+  background: none;
   width: 40px;
   height: 40px;
   padding: 0;
@@ -432,6 +442,36 @@ body {
 
 .chat-input-button:disabled svg {
   fill: lightslategray;
+}
+
+.chat-send-button {
+  background: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  cursor: pointer;
+  display: block;
+  outline: 0;
+  border-radius: 12px;
+  position: absolute;
+  right: 145px;
+  background-color: rgb(252, 209, 167);
+  opacity: 1;
+  transition: 0.2s all;
+  &:disabled {
+    opacity: 0;
+  }
+  svg {
+    fill: black;
+    width: 24px;
+    height: 24px;
+    margin: 8px;
+  }
+  &:hover {
+    background-color: rgb(227, 179, 136);
+  }
 }
 
 .chat-input-micSelector {

@@ -24,7 +24,7 @@ export const webapi: ClientAPI = {
         return new Promise<RequestMetrics | undefined>((resolve, reject) => {
             let currentMessageId: number = ++maxWebAPIMessageId;
             // call server websocket and send request
-            globalThis.ws.send(
+            globalThis.ws?.send(
                 JSON.stringify({
                     message: "process-shell-request",
                     data: {
@@ -67,7 +67,7 @@ export const webapi: ClientAPI = {
         });
     },
     getDynamicDisplay(source: string, id: string) {
-        globalThis.ws.send(
+        globalThis.ws?.send(
             JSON.stringify({
                 message: "get-dynamic-display",
                 data: {
@@ -90,7 +90,7 @@ export const webapi: ClientAPI = {
     ) {
         return new Promise<TemplateSchema>((resolve, reject) => {
             let currentMessageId: number = ++maxWebAPIMessageId;
-            globalThis.ws.send(
+            globalThis.ws?.send(
                 JSON.stringify({
                     message: "get-template-schema",
                     data: {
@@ -118,8 +118,8 @@ export const webapi: ClientAPI = {
     onSettingSummaryChanged(callback) {
         fnMap.set("setting-summary-changed", callback);
     },
-    onMarkRequestExplained(callback) {
-        fnMap.set("mark-explained", callback);
+    onNotifyExplained(callback) {
+        fnMap.set("notifyExplained", callback);
     },
     onRandomCommandSelected(callback) {
         fnMap.set("update-random-command", callback);
@@ -376,9 +376,7 @@ export async function createWebSocket(
             switch (msg.data.event) {
                 case "explained":
                     if (msg.data.requestId === undefined) {
-                        console.warn(
-                            "markRequestExplained: requestId is undefined",
-                        );
+                        console.warn("notifyExplained: requestId is undefined");
                         return;
                     } else {
                         fnMap.get("mark-explained")(

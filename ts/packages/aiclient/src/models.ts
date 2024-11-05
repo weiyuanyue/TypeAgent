@@ -18,14 +18,13 @@ export type CompletionSettings = {
  */
 export interface ChatModel extends TypeChatLanguageModel {
     completionSettings: CompletionSettings;
-    complete(
-        prompt: string | PromptSection[] | ChatMessage[],
-    ): Promise<Result<string>>;
+    completionCallback?: ((request: any, response: any) => void) | undefined;
+    complete(prompt: string | PromptSection[]): Promise<Result<string>>;
 }
 
 export interface ChatModelWithStreaming extends ChatModel {
     completeStream(
-        prompt: string | PromptSection[] | ChatMessage[],
+        prompt: string | PromptSection[],
     ): Promise<Result<AsyncIterableIterator<string>>>;
 }
 
@@ -33,14 +32,29 @@ export interface ChatModelWithStreaming extends ChatModel {
  * A model that returns embeddings for the input K
  */
 export interface EmbeddingModel<K> {
+    /**
+     * Generate an embedding for the given input
+     * @param input
+     */
     generateEmbedding(input: K): Promise<Result<number[]>>;
-    // Future: support batch operations
 }
 
 /**
  * A Model that generates embeddings for the given input
  */
-export interface TextEmbeddingModel extends EmbeddingModel<string> {}
+export interface TextEmbeddingModel extends EmbeddingModel<string> {
+    /**
+     * Optional: batching support
+     * Not all models/apis support batching
+     * @param inputs
+     */
+    generateEmbeddingBatch?(inputs: string[]): Promise<Result<number[][]>>;
+    /**
+     * Maximum batch size
+     * If no batching, maxBatchSize should be 1
+     */
+    readonly maxBatchSize: number;
+}
 
 /**
  * A model that generates images given the image prompt/description
@@ -53,31 +67,6 @@ export interface ImageModel {
         height: number,
     ): Promise<Result<ImageGeneration>>;
 }
-
-export type ChatMessage = {
-    role: "system" | "user" | "assistant";
-    content: ChatMessageContent[];
-};
-
-export type ChatMessageContent =
-    | string
-    | TextMessageContent
-    | ImageMessageContent;
-
-export type TextMessageContent = {
-    type: "text";
-    text: string;
-};
-
-export type ImageMessageContent = {
-    type: "image_url";
-    image_url: ImageUrl;
-};
-
-export type ImageUrl = {
-    url: string;
-    detail?: "auto" | "low" | "high";
-};
 
 export type ImageGeneration = {
     images: GeneratedImage[];

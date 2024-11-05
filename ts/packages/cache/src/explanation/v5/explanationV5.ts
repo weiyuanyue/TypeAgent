@@ -9,8 +9,9 @@
 
 import {
     CorrectionRecord,
-    CreateConstructionInfo,
+    ConstructionCreationConfig,
     GenericExplanationResult,
+    ExplainerConfig,
 } from "../genericExplainer.js";
 import { Explainer } from "../explainer.js";
 import {
@@ -89,18 +90,18 @@ class ExplanationV5TypeChatAgent {
         this.subPhrasesExplainer = createSubPhraseExplainer(model);
         this.alternativesExplainer = createAlternativesExplainer(model);
     }
-    public async run(input: RequestAction) {
+    public async run(input: RequestAction, config?: ExplainerConfig) {
         const propertyExplainer = input.history
             ? this.propertyExplainerWithContext
             : this.propertyExplainerWithoutContext;
-        const result1 = await propertyExplainer.run(input);
+        const result1 = await propertyExplainer.run(input, config);
         if (!result1.success) {
             return result1;
         }
-        const result2 = await this.subPhrasesExplainer.run([
-            input,
-            result1.data,
-        ]);
+        const result2 = await this.subPhrasesExplainer.run(
+            [input, result1.data],
+            config,
+        );
         if (result2.corrections) {
             // includes the data from agent1 in corrections
             result2.corrections.forEach((correction) => {
@@ -113,11 +114,10 @@ class ExplanationV5TypeChatAgent {
         if (!result2.success) {
             return result2;
         }
-        const result3 = await this.alternativesExplainer.run([
-            input,
-            result1.data,
-            result2.data,
-        ]);
+        const result3 = await this.alternativesExplainer.run(
+            [input, result1.data, result2.data],
+            config,
+        );
         if (result3.corrections) {
             // includes the data from agent1 in corrections
             result3.corrections.forEach((correction) => {
@@ -157,18 +157,21 @@ class ExplanationV5TypeChatAgent {
     public validate(
         input: RequestAction,
         result: Explanation,
+        config?: ExplainerConfig,
     ): ValidationError | undefined {
         const propertyExplainer = input.history
             ? this.propertyExplainerWithContext
             : this.propertyExplainerWithoutContext;
-        const result1 = propertyExplainer.validate?.(input, result);
+        const result1 = propertyExplainer.validate?.(input, result, config);
         const result2 = this.subPhrasesExplainer.validate?.(
             [input, result],
             result,
+            config,
         );
         const result3 = this.alternativesExplainer.validate?.(
             [input, result, result],
             result,
+            config,
         );
 
         const corrections: string[] = [];
@@ -283,11 +286,11 @@ function getPropertyTransformInfo(
 async function augmentExplanation(
     explanation: Explanation,
     requestAction: RequestAction,
-    createConstructionInfo: CreateConstructionInfo,
+    constructionCreationConfig: ConstructionCreationConfig,
 ) {
     // for each non-implicit parameter that matches a type in the schema config, generate all of the alternatives for that parameter
 
-    const getSchemaConfig = createConstructionInfo.getSchemaConfig;
+    const getSchemaConfig = constructionCreationConfig.getSchemaConfig;
     const actions = requestAction.actions;
 
     for (const param of explanation.propertyAlternatives) {
@@ -307,9 +310,14 @@ async function augmentExplanation(
             if (paramRange) {
                 const subPhrases = param.propertySubPhrases;
                 if (subPhrases.length === 1) {
-                    const model = openai.createChatModel(undefined, {
-                        response_format: { type: "json_object" },
-                    });
+                    const model = openai.createChatModel(
+                        undefined,
+                        {
+                            response_format: { type: "json_object" },
+                        },
+                        undefined,
+                        ["explanationV5"],
+                    );
                     const subPhrase = subPhrases[0];
                     const prompt = `You are a service that translates user requests into JSON objects of type "ParameterVariationResult" according to the following TypeScript definitions:
 interface ParameterVariation {
@@ -422,10 +430,10 @@ function getParserForPropertyValue(
 export function createConstructionV5(
     requestAction: RequestAction,
     explanation: Explanation,
-    createConstructionInfo: CreateConstructionInfo,
+    constructionCreationConfig: ConstructionCreationConfig,
 ) {
     const actions = requestAction.actions;
-    const getSchemaConfig = createConstructionInfo.getSchemaConfig;
+    const getSchemaConfig = constructionCreationConfig.getSchemaConfig;
     const entityParameters = explanation.properties.filter(
         (param) => isEntityParameter(param) && param.entityIndex !== undefined,
     ) as EntityProperty[];

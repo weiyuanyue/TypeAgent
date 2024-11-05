@@ -18,6 +18,7 @@ import { AppAgentProvider } from "../../agent/agentProvider.js";
 import registerDebug from "debug";
 import { getTranslatorActionInfos } from "../../translation/actionInfo.js";
 import { DeepPartialUndefinedAndNull } from "common-utils";
+import { DispatcherName } from "./interactiveIO.js";
 
 const debug = registerDebug("typeagent:agents");
 const debugError = registerDebug("typeagent:agents:error");
@@ -78,7 +79,12 @@ export type SetStateResult = {
     };
 };
 
-export const alwaysEnabledCommandsAgent = ["system"];
+export const alwaysEnabledAgents = {
+    translators: [DispatcherName],
+    actions: [DispatcherName],
+    commands: ["system"],
+};
+
 export class AppAgentManager implements TranslatorConfigProvider {
     private readonly agents = new Map<string, AppAgentRecord>();
     private readonly translatorConfigs = new Map<string, TranslatorConfig>();
@@ -87,6 +93,7 @@ export class AppAgentManager implements TranslatorConfigProvider {
         string
     >();
     private readonly emojis: Record<string, string> = {};
+    private readonly transientAgents: Record<string, boolean | undefined> = {};
 
     public getAppAgentNames(): string[] {
         return Array.from(this.agents.keys());
@@ -103,7 +110,27 @@ export class AppAgentManager implements TranslatorConfigProvider {
         return record.translators.has(translatorName);
     }
 
-    public isActionEnabled(translatorName: string) {
+    public isTranslatorActive(translatorName: string) {
+        return (
+            this.isTranslatorEnabled(translatorName) &&
+            this.transientAgents[translatorName] !== false
+        );
+    }
+
+    public getActiveTranslators() {
+        return this.getTranslatorNames().filter((name) =>
+            this.isTranslatorActive(name),
+        );
+    }
+
+    public isActionActive(translatorName: string) {
+        return (
+            this.isActionEnabled(translatorName) &&
+            this.transientAgents[translatorName] !== false
+        );
+    }
+
+    private isActionEnabled(translatorName: string) {
         const appAgentName = getAppAgentName(translatorName);
         const record = this.getRecord(appAgentName);
         return record.actions.has(translatorName);
@@ -140,6 +167,9 @@ export class AppAgentManager implements TranslatorConfigProvider {
                 this.translatorConfigs.set(name, config);
                 this.emojis[name] = config.emojiChar;
 
+                if (config.transient) {
+                    this.transientAgents[name] = false;
+                }
                 if (config.injected) {
                     const actionInfos = getTranslatorActionInfos(config, name);
                     for (const info of actionInfos.values()) {
@@ -212,6 +242,7 @@ export class AppAgentManager implements TranslatorConfigProvider {
         useDefault: boolean = true,
     ): Promise<SetStateResult> {
         const changedTranslators: [string, boolean][] = [];
+        const failedTranslators: [string, boolean, Error][] = [];
         const changedActions: [string, boolean][] = [];
         const failedActions: [string, boolean, Error][] = [];
         const changedCommands: [string, boolean][] = [];
@@ -235,10 +266,17 @@ export class AppAgentManager implements TranslatorConfigProvider {
             if (enableTranslator !== currentTranslatorEnabled) {
                 if (enableTranslator) {
                     record.translators.add(name);
-                } else {
+                    changedTranslators.push([name, enableTranslator]);
+                } else if (!alwaysEnabledAgents.translators.includes(name)) {
                     record.translators.delete(name);
+                    changedTranslators.push([name, enableTranslator]);
+                } else {
+                    failedTranslators.push([
+                        name,
+                        enableTranslator,
+                        new Error(`Cannot disable ${name} translator`),
+                    ]);
                 }
-                changedTranslators.push([name, enableTranslator]);
             }
 
             const currentActionEnabled = record.actions.has(name);
@@ -258,6 +296,7 @@ export class AppAgentManager implements TranslatorConfigProvider {
                         try {
                             await this.updateAction(
                                 name,
+                                record,
                                 enableAction,
                                 context,
                             );
@@ -308,7 +347,7 @@ export class AppAgentManager implements TranslatorConfigProvider {
                         })(),
                     );
                 } else {
-                    if (alwaysEnabledCommandsAgent.includes(record.name)) {
+                    if (alwaysEnabledAgents.commands.includes(record.name)) {
                         failedCommands.push([
                             record.name,
                             enableCommands,
@@ -316,6 +355,7 @@ export class AppAgentManager implements TranslatorConfigProvider {
                         ]);
                     } else {
                         record.commands = false;
+                        changedCommands.push([record.name, enableCommands]);
                         await this.checkCloseSessionContext(record);
                     }
                 }
@@ -336,6 +376,19 @@ export class AppAgentManager implements TranslatorConfigProvider {
         };
     }
 
+    public getTransientState(translatorName: string) {
+        return this.transientAgents[translatorName];
+    }
+
+    public toggleTransient(translatorName: string, enable: boolean) {
+        if (this.transientAgents[translatorName] === undefined) {
+            throw new Error(`Transient sub agent not found: ${translatorName}`);
+        }
+        debug(
+            `Toggle transient agent '${translatorName}' to ${enable ? "enabled" : "disabled"}`,
+        );
+        this.transientAgents[translatorName] = enable;
+    }
     public async close() {
         for (const record of this.agents.values()) {
             record.actions.clear();
@@ -346,15 +399,10 @@ export class AppAgentManager implements TranslatorConfigProvider {
 
     private async updateAction(
         translatorName: string,
+        record: AppAgentRecord,
         enable: boolean,
         context: CommandHandlerContext,
     ) {
-        const appAgentName = getAppAgentName(translatorName);
-        // For update, it's only if the agent does not exist.
-        const record = this.agents.get(appAgentName);
-        if (record === undefined) {
-            return;
-        }
         if (enable) {
             if (record.actions.has(translatorName)) {
                 return;
@@ -378,6 +426,9 @@ export class AppAgentManager implements TranslatorConfigProvider {
             }
             debug(`Enabled ${translatorName}`);
         } else {
+            if (alwaysEnabledAgents.actions.includes(translatorName)) {
+                throw new Error(`Cannot disable ${translatorName} actions`);
+            }
             if (!record.actions.has(translatorName)) {
                 return;
             }

@@ -5,7 +5,6 @@ import {
     TextEmbeddingModel,
     CompletionSettings,
     ChatModel,
-    ChatMessage,
     ChatModelWithStreaming,
     ImageModel,
     ImageGeneration,
@@ -27,6 +26,7 @@ import {
     createAzureTokenProvider,
 } from "./auth";
 import registerDebug from "debug";
+import { TokenCounter } from "./tokenCounter";
 
 const debugOpenAI = registerDebug("typeagent:openai");
 
@@ -329,12 +329,14 @@ function azureImageApiSettingsFromEnv(
  * @param modelType Type of setting
  * @param env Environment variables
  * @param endpointName
+ * @param tags Tags for tracking usage of this model instance
  * @returns API settings, or undefined if endpoint was not defined
  */
 export function localOpenAIApiSettingsFromEnv(
     modelType: ModelType,
     env?: Record<string, string | undefined>,
     endpointName?: string,
+    tags?: string[],
 ): ApiSettings | undefined {
     env ??= process.env;
     endpointName ??= "Local";
@@ -379,16 +381,6 @@ async function createApiHeaders(settings: ApiSettings): Promise<Result<any>> {
     }
     return success(apiHeaders);
 }
-
-// Statistics returned by the OAI api
-export type CompletionUsageStats = {
-    // Number of tokens in the generated completion
-    completion_tokens: number;
-    // Number of tokens in the prompt
-    prompt_tokens: number;
-    // Total tokens (prompt + completion)
-    total_tokens: number;
-};
 
 // Parse the endpoint name with the following naming conventions
 //
@@ -463,6 +455,9 @@ export function supportsStreaming(
 
 type FilterResult = {
     hate?: Filter;
+    jailbreak?: Filter;
+    protected_material_code?: Filter;
+    protected_material_text?: Filter;
     self_harm?: Filter;
     sexual?: Filter;
     violence?: Filter;
@@ -477,12 +472,14 @@ type FilterError = {
 type Filter = {
     filtered: boolean;
     severity: string;
+    detected?: boolean;
 };
 
 // NOTE: these are not complete
 type ChatCompletion = {
     id: string;
     choices: ChatCompletionChoice[];
+    usage: CompletionUsageStats;
 };
 
 type ChatCompletionChoice = {
@@ -494,6 +491,7 @@ type ChatCompletionChoice = {
 type ChatCompletionChunk = {
     id: string;
     choices: ChatCompletionDelta[];
+    usage?: CompletionUsageStats;
 };
 
 type ChatCompletionDelta = {
@@ -519,6 +517,16 @@ type ImageData = {
     url: string;
 };
 
+// Statistics returned by the OAI api
+export type CompletionUsageStats = {
+    // Number of tokens in the generated completion
+    completion_tokens: number;
+    // Number of tokens in the prompt
+    prompt_tokens: number;
+    // Total tokens (prompt + completion)
+    total_tokens: number;
+};
+
 /**
  * Create a client for an Open AI chat model
  *  createChatModel()
@@ -531,12 +539,16 @@ type ImageData = {
  *  createChatModel(apiSettings)
  *     You supply API settings
  * @param endpoint The name of the API endpoint OR explicit API settings with which to create a client
+ * @param completionSettings Completion settings for the model
+ * @param completionCallback A callback to be called when the response is returned from the api
+ * @param tags Tags for tracking usage of this model instance
  * @returns ChatModel
  */
 export function createChatModel(
     endpoint?: string | ApiSettings,
     completionSettings?: CompletionSettings,
-    responseCallback?: (request: any, response: any) => void,
+    completionCallback?: (request: any, response: any) => void,
+    tags?: string[],
 ): ChatModelWithStreaming {
     const settings =
         typeof endpoint === "object"
@@ -558,13 +570,14 @@ export function createChatModel(
           };
     const model: ChatModelWithStreaming = {
         completionSettings: completionSettings,
+        completionCallback,
         complete,
         completeStream,
     };
     return model;
 
     async function complete(
-        prompt: string | PromptSection[] | ChatMessage[],
+        prompt: string | PromptSection[],
     ): Promise<Result<string>> {
         verifyPromptLength(settings, prompt);
 
@@ -602,15 +615,20 @@ export function createChatModel(
             return error("No choices returned");
         }
 
-        if (responseCallback) {
-            responseCallback(params, data);
+        if (model.completionCallback) {
+            model.completionCallback(params, data);
         }
+
+        try {
+            // track token usage
+            TokenCounter.getInstance().add(data.usage, tags);
+        } catch {}
 
         return success(data.choices[0].message?.content ?? "");
     }
 
     async function completeStream(
-        prompt: string | PromptSection[] | ChatMessage[],
+        prompt: string | PromptSection[],
     ): Promise<Result<AsyncIterableIterator<string>>> {
         verifyPromptLength(settings, prompt);
 
@@ -632,6 +650,7 @@ export function createChatModel(
             ...defaultParams,
             messages: messages,
             stream: true,
+            stream_options: { include_usage: true },
             ...completionParams,
         };
         const result = await callApi(
@@ -658,6 +677,14 @@ export function createChatModel(
                             if (delta) {
                                 yield delta;
                             }
+                        }
+                        if (data.usage) {
+                            try {
+                                TokenCounter.getInstance().add(
+                                    data.usage,
+                                    tags,
+                                );
+                            } catch {}
                         }
                     }
                 }
@@ -706,49 +733,65 @@ function verifyFilterResults(filterResult: FilterResult) {
 }
 
 /**
+ * Create one of AI System's standard Chat Models
+ * @param modelName
+ * @param tag - Tag for tracking this model's usage
+ * @returns
+ */
+export function createChatModelDefault(tag: string): ChatModelWithStreaming {
+    return createJsonChatModel(undefined, [tag]);
+}
+
+/**
  * Return a Chat model that returns JSON
  * Uses the type: json_object flag
  * @param endpoint
+ * @param tags - Tags for tracking this model's usage
  * @returns ChatModel
  */
 export function createJsonChatModel(
     endpoint?: string | ApiSettings,
-): ChatModel {
-    return createChatModel(endpoint, {
-        response_format: { type: "json_object" },
-    });
+    tags?: string[],
+): ChatModelWithStreaming {
+    return createChatModel(
+        endpoint,
+        {
+            response_format: { type: "json_object" },
+        },
+        undefined,
+        tags,
+    );
 }
 
 /**
  * Model that supports OpenAI api, but running locally
  * @param endpointName
  * @param completionSettings
+ * @param tags - Tags for tracking this model's usage
  * @returns If no local Api settings found, return undefined
  */
 export function createLocalChatModel(
     endpointName?: string,
     completionSettings?: CompletionSettings,
+    tags?: string[],
 ): ChatModel | undefined {
     const settings = localOpenAIApiSettingsFromEnv(
         ModelType.Chat,
         undefined,
         endpointName,
+        tags,
     );
-    return settings ? createChatModel(settings, completionSettings) : undefined;
+    return settings
+        ? createChatModel(settings, completionSettings, undefined, tags)
+        : undefined;
 }
 
-export type AzureChatModelName = "GPT_4" | "GPT_35_TURBO" | "GPT_4_O";
-/**
- * Create one of AI System's standard Chat Models
- * @param modelName
- * @returns
- */
-export function createStandardAzureChatModel(
-    modelName: AzureChatModelName,
-): ChatModel {
-    const endpointName = modelName === "GPT_4" ? undefined : modelName; // GPT_4 is the default model
-    return createJsonChatModel(endpointName);
-}
+export type AzureChatModelName =
+    | "DEFAULT"
+    | "GPT_4"
+    | "GPT_35_TURBO"
+    | "GPT_4_O"
+    | "GPT_4_O_MINI";
 
 /**
  * Create a client for the OpenAI embeddings service
@@ -759,6 +802,8 @@ export function createEmbeddingModel(
     apiSettings?: ApiSettings,
     dimensions?: number | undefined,
 ): TextEmbeddingModel {
+    // https://platform.openai.com/docs/api-reference/embeddings/create#embeddings-create-input
+    const maxBatchSize = 2048;
     const settings = apiSettings ?? apiSettingsFromEnv(ModelType.Embedding);
     const defaultParams: any = settings.isAzure
         ? {}
@@ -770,10 +815,42 @@ export function createEmbeddingModel(
     }
     const model: TextEmbeddingModel = {
         generateEmbedding,
+        generateEmbeddingBatch,
+        maxBatchSize,
     };
     return model;
 
     async function generateEmbedding(input: string): Promise<Result<number[]>> {
+        if (!input) {
+            return error("Empty input");
+        }
+        const result = await callApi(input);
+        if (!result.success) {
+            return result;
+        }
+        const data = result.data as EmbeddingData;
+        return success(data.data[0].embedding);
+    }
+
+    // Support optional method, since OAI supports batching
+    async function generateEmbeddingBatch(
+        input: string[],
+    ): Promise<Result<number[][]>> {
+        if (input.length === 0) {
+            return error("Empty input array");
+        }
+        if (input.length > maxBatchSize) {
+            return error(`Batch size must be < ${maxBatchSize}`);
+        }
+        const result = await callApi(input);
+        if (!result.success) {
+            return result;
+        }
+        const data = result.data as EmbeddingData;
+        return success(data.data.map((d) => d.embedding));
+    }
+
+    async function callApi(input: string | string[]): Promise<Result<unknown>> {
         const headerResult = await createApiHeaders(settings);
         if (!headerResult.success) {
             return headerResult;
@@ -783,21 +860,16 @@ export function createEmbeddingModel(
             input,
         };
 
-        const result = await callJsonApi(
+        return callJsonApi(
             headerResult.data,
             settings.endpoint,
             params,
             settings.maxRetryAttempts,
             settings.retryPauseMs,
         );
-        if (!result.success) {
-            return result;
-        }
-
-        const data = result.data as { data: { embedding: number[] }[] };
-
-        return success(data.data[0].embedding);
     }
+
+    type EmbeddingData = { data: { embedding: number[] }[] };
 }
 
 /**

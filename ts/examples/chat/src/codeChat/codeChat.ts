@@ -35,7 +35,7 @@ import {
 import { createCommandTransformer } from "./commandTransformer.js";
 
 export async function runCodeChat(): Promise<void> {
-    const model = openai.createChatModel();
+    const model = openai.createChatModelDefault("codeChat");
     const codeReviewer = createCodeReviewer(model);
     // For answer/code indexing examples
     const folderPath = "/data/code";
@@ -308,11 +308,18 @@ export async function runCodeChat(): Promise<void> {
                 if (name) {
                     name = `${moduleName}.${name}`;
                     let code = tsCode.getTextOfStatement(sourceFile, statement);
-                    const text = await codeIndex.put(
+                    const docs = await codeIndex.put(
                         { code, language: "typescript" },
                         name,
                         fullPath,
                     );
+                    let text = "";
+                    for (const comment in docs.comments) {
+                        if (text) {
+                            text += "\n";
+                        }
+                        text += `${comment}`;
+                    }
                     if (text) {
                         if (namedArgs.verbose) {
                             printer.writeTitle(name);

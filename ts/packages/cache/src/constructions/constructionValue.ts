@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+import { setObjectProperty } from "common-utils";
 import {
     HistoryContext,
     JSONAction,
@@ -9,6 +10,7 @@ import {
 import { ConstructionPart } from "./constructions.js";
 import { TransformInfo, isMatchPart, toTransformInfoKey } from "./matchPart.js";
 import { ParsePart, isParsePart } from "./parsePart.js";
+import { MatchConfig } from "./constructionMatch.js";
 
 export type MatchedValueTranslator = {
     transform(
@@ -32,10 +34,8 @@ export type MatchedValues = {
 export function matchedValues(
     parts: ConstructionPart[],
     matched: string[],
-    enableWildcard: boolean,
+    config: MatchConfig,
     matchValueTranslator: MatchedValueTranslator,
-    history?: HistoryContext,
-    conflicts?: boolean,
 ): MatchedValues | undefined {
     const matchedParts = parts.filter((e) => e.capture);
     if (matchedParts.length !== matched.length) {
@@ -45,9 +45,8 @@ export function matchedValues(
     }
 
     const values: [string, ParamValueType][] = [];
-    const conflictValues: [string, ParamValueType[]][] | undefined = conflicts
-        ? []
-        : undefined;
+    const conflictValues: [string, ParamValueType[]][] | undefined =
+        config.conflicts ? [] : undefined;
     let matchedCount = 0;
     let wildcardCharCount = 0;
 
@@ -69,7 +68,7 @@ export function matchedValues(
                 } else {
                     entry = { transformInfo: info, text: [match] };
                     matchedTransformText.set(key, entry);
-                    if (enableWildcard && part.wildcard) {
+                    if (config.enableWildcard && part.wildcard) {
                         wildcardNames.add(key);
                     }
                 }
@@ -90,7 +89,7 @@ export function matchedValues(
         const value = matchValueTranslator.transform(
             matches.transformInfo,
             matches.text,
-            history,
+            config.history,
         );
         const { transformName, actionIndex } = matches.transformInfo;
         const propertyName = `${actionIndex !== undefined ? `${actionIndex}.` : ""}${transformName}`;
@@ -134,52 +133,13 @@ export function matchedValues(
     };
 }
 
-function setActionProperty(object: any, name: string, value: any) {
-    const properties = name.split(".");
-    let lastName: string | number = "actionProps";
-    let curr = object;
-    for (let i = 0; i < properties.length; i++) {
-        const name = properties[i];
-        // Protect against prototype pollution
-        if (
-            name === "__proto__" ||
-            name === "constructor" ||
-            name === "prototype"
-        ) {
-            throw new Error(`Invalid property name: ${name}`);
-        }
-        const maybeIndex = parseInt(name);
-        if (maybeIndex.toString() === name) {
-            // Array index
-            if (curr[lastName] === undefined) {
-                curr[lastName] = [];
-            }
-            curr = curr[lastName];
-            if (!Array.isArray(curr)) {
-                throw new Error(`Internal error: ${lastName} is not an array`);
-            }
-            lastName = maybeIndex;
-        } else {
-            if (curr[lastName] === undefined) {
-                curr[lastName] = {};
-            }
-            curr = curr[lastName];
-            if (typeof curr !== "object") {
-                throw new Error(`Internal error: ${lastName} is not an object`);
-            }
-            lastName = name;
-        }
-    }
-    curr[lastName] = value;
-}
-
 export function createActionProps(
     values: [string, ParamValueType][],
     initial?: JSONAction | JSONAction[],
 ) {
     const result: any = { actionProps: structuredClone(initial) };
     for (const [name, value] of values) {
-        setActionProperty(result, name, value);
+        setObjectProperty(result, "actionProps", name, value);
     }
     const actionProps = result.actionProps;
     if (actionProps.parameters === undefined) {
@@ -199,14 +159,4 @@ export function createActionProps(
         }
     }
     return actionProps;
-}
-
-export function patchActionProperty(
-    actionProps: JSONAction | JSONAction[],
-    name: string,
-    value: ParamValueType,
-) {
-    const object = { actionProps };
-    setActionProperty(object, name, value);
-    return object;
 }

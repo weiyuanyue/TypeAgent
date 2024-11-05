@@ -13,6 +13,7 @@ import {
     getCacheFactory,
     getBuiltinTranslatorNames,
     initializeCommandHandlerContext,
+    closeCommandHandlerContext,
 } from "agent-dispatcher/internal";
 
 // Default test case, that include multiple phrase action name (out of order) and implicit parameters (context)
@@ -103,7 +104,7 @@ export default class ExplainCommand extends Command {
                             await context.agentCache.processRequestAction(
                                 requestAction,
                                 false,
-                                true,
+                                { concurrent: true },
                             );
                         console.log(
                             result.explanationResult.explanation.success
@@ -150,5 +151,9 @@ export default class ExplainCommand extends Command {
 
             printProcessRequestActionResult(result);
         }
+        await closeCommandHandlerContext(context);
+
+        // Some background network (like monogo) might keep the process live, exit explicitly.
+        process.exit(0);
     }
 }
