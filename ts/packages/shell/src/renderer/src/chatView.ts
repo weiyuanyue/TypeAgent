@@ -141,7 +141,7 @@ export class ChatView {
 
         // wire up messages from slide show iframes
         window.onmessage = (e) => {
-            if (e.data.startsWith("slideshow_")) {
+            if (typeof e.data === 'string' && e.data.startsWith("slideshow_")) {
                 const temp: string[] = (e.data as string).split("_");
                 if (temp.length != 3) {
                     return;

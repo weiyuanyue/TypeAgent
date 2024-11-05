@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 function createSVGElement(path: string, id?: string) {
-    const wrapperDiv = document.createElement("i");
+    const wrapperDiv = document.createElement("span");
     const emptySVG = document.createElementNS(
         "http://www.w3.org/2000/svg",
         "svg",

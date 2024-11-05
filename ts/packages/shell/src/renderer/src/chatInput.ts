@@ -20,6 +20,8 @@ export interface ExpandableTextareaHandlers {
     onSend: (text: string) => void;
     altHandler?: (eta: ExpandableTextarea, event: KeyboardEvent) => void;
     onChange?: (eta: ExpandableTextarea) => void;
+    onFocus?: (eta: ExpandableTextarea) => void;
+    onBlur?: (eta: ExpandableTextarea) => void;
     onKeydown?: (eta: ExpandableTextarea, event: KeyboardEvent) => boolean;
 }
 
@@ -34,7 +36,7 @@ export class ExpandableTextarea {
         sendButton?: HTMLButtonElement,
     ) {
         this.entryHandlers = handlers;
-        this.textEntry = document.createElement("span");
+        this.textEntry = document.createElement("textarea");
         this.textEntry.className = className;
         this.textEntry.contentEditable = "true";
         this.textEntry.role = "textbox";
@@ -67,6 +69,16 @@ export class ExpandableTextarea {
 
             if (sendButton !== undefined) {
                 sendButton.disabled = this.textEntry.innerHTML.length == 0;
+            }
+        });
+        this.textEntry.addEventListener("focus", () => {
+            if (this.entryHandlers.onFocus !== undefined) {
+                this.entryHandlers.onFocus(this);
+            }
+        });
+        this.textEntry.addEventListener("blur", () => {
+            if (this.entryHandlers.onBlur !== undefined) {
+                this.entryHandlers.onBlur(this);
             }
         });
     }
@@ -209,6 +221,7 @@ export class ChatInput {
             this.textarea.send();
         };
         this.sendButton.disabled = true;
+        const self = this;
         this.textarea = new ExpandableTextarea(
             inputId,
             "user-textarea",
@@ -216,6 +229,8 @@ export class ChatInput {
                 onSend: messageHandler,
                 onChange,
                 onKeydown,
+                onFocus: self.onFocus.bind(self),
+                onBlur: self.onBlur.bind(self),
             },
             this.sendButton,
         );
@@ -343,18 +358,18 @@ export class ChatInput {
             }
         });
 
-        this.separatorContainer = document.createElement("div");
-        this.separatorContainer.className =
-            "chat-input-button chat-input-separator-container";
-        this.separator = document.createElement("div");
-        this.separator.className = "chat-input-separator";
-        this.separatorContainer.append(this.separator);
+        // this.separatorContainer = document.createElement("div");
+        // this.separatorContainer.className =
+        //     "chat-input-button chat-input-separator-container";
+        // this.separator = document.createElement("div");
+        // this.separator.className = "chat-input-separator";
+        // this.separatorContainer.append(this.separator);
 
         this.inputContainer.appendChild(this.textarea.getTextEntry());
         this.inputContainer.appendChild(this.attachButton);
         this.inputContainer.appendChild(this.camButton);
         this.inputContainer.appendChild(this.micButton);
-        this.inputContainer.appendChild(this.separatorContainer);
+        // this.inputContainer.appendChild(this.separatorContainer);
         this.inputContainer.appendChild(this.sendButton);
     }
 
@@ -391,7 +406,6 @@ export class ChatInput {
             this.sendButton.disabled =
                 this.textarea.getTextEntry().innerHTML.length == 0;
         }
-
         this.textarea.focus();
     }
 
@@ -402,6 +416,14 @@ export class ChatInput {
 
     getInputContainer() {
         return this.inputContainer;
+    }
+    onFocus() {
+        this.inputContainer.classList.add("chat-input-focus");
+    }
+    onBlur() {
+        if (this.textarea.getTextEntry().innerText?.length === 0) {
+            this.getInputContainer()?.classList.remove("chat-input-focus");
+        }
     }
 
     public focus() {

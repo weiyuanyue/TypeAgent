@@ -677,7 +677,7 @@ app.whenReady().then(async () => {
             );
 
             mainWindow?.setTitle(
-                `${newSettingSummary} Zoom: ${ShellSettings.getinstance().zoomLevel * 100}%`,
+                `TypeAgent`,
             );
         }
 
@@ -750,7 +750,10 @@ app.whenReady().then(async () => {
         );
 
         mainWindow?.setTitle(
-            `${settingSummary} Zoom: ${ShellSettings.getinstance().zoomLevel * 100}%`,
+            `TypeAgent`,
+        );
+        mainWindow?.setIcon(
+            `TypeAgent`,
         );
         mainWindow?.show();
 
