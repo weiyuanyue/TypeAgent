@@ -231,7 +231,7 @@ export class ChatInput {
         const self = this;
         this.textarea = new ExpandableTextarea(
             inputId,
-            "user-textarea"
+            "user-textarea",
             {
                 onSend: messageHandler,
                 onChange,

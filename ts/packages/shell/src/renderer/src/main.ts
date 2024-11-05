@@ -14,6 +14,7 @@ import { MetricsView } from "./metricsView";
 import { ShellSettings } from "../../main/shellSettings";
 import { AppAgentEvent } from "@typeagent/agent-sdk";
 import { CameraView } from "./cameraView";
+import { WelcomeView } from "./welcomeView";
 import { createWebSocket, webapi } from "./webSocketAPI";
 
 export function getClientAPI(): ClientAPI {
@@ -299,7 +300,6 @@ document.addEventListener("DOMContentLoaded", function () {
         [iconSettings(), iconMetrics(), iconHelp()],
     );
     wrapper.appendChild(tabs.getContainer());
-
     document.onkeyup = (ev: KeyboardEvent) => {
         if (ev.key == "Escape") {
             tabs.closeTabs();
@@ -308,6 +308,10 @@ document.addEventListener("DOMContentLoaded", function () {
     };
 
     const chatView = new ChatView(idGenerator, agents);
+    customElements.define('welcome-view', WelcomeView);
+    const welcomeView = document.createElement('welcome-view') as WelcomeView;
+    welcomeView.setChatView(chatView);
+    wrapper.appendChild(welcomeView);
     const cameraView = new CameraView((image: HTMLImageElement) => {
         // copy image
         const newImage: HTMLImageElement = document.createElement("img");
