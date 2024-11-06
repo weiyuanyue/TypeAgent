@@ -238,7 +238,7 @@ export class ChatInput {
         const self = this;
         this.textarea = new ExpandableTextarea(
             inputId,
-            "user-textarea",
+            "user-textarea scroll_enabled",
             {
                 onSend: messageHandler,
                 onChange,
