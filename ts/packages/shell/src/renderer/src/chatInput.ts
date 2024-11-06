@@ -28,6 +28,7 @@ export interface ExpandableTextareaHandlers {
 
 export class ExpandableTextarea {
     private textEntry: HTMLSpanElement;
+    private inputContainer: HTMLDivElement;
     private entryHandlers: ExpandableTextareaHandlers;
 
     constructor(
@@ -37,6 +38,8 @@ export class ExpandableTextarea {
         sendButton?: HTMLButtonElement,
     ) {
         this.entryHandlers = handlers;
+        this.inputContainer = document.createElement("div");
+        this.inputContainer.className = "chat-input-container";
         this.textEntry = document.createElement("span");
         this.textEntry.className = className;
         this.textEntry.contentEditable = "true";
@@ -90,6 +93,10 @@ export class ExpandableTextarea {
 
     getTextEntry() {
         return this.textEntry;
+    }
+
+    getContainer() {
+        return this.inputContainer;
     }
 
     setContent(content: string | null) {
@@ -233,7 +240,7 @@ export class ChatInput {
         const self = this;
         this.textarea = new ExpandableTextarea(
             inputId,
-            "user-textarea",
+            "user-textarea scroll_enabled",
             {
                 onSend: messageHandler,
                 onChange,
@@ -377,11 +384,13 @@ export class ChatInput {
             }
         });
 
-        this.inputContainer.appendChild(this.textarea.getTextEntry());
+        this.textarea.getContainer().appendChild(this.textarea.getTextEntry());
+        this.textarea.getContainer().appendChild(this.sendButton);
+        this.inputContainer.appendChild(this.textarea.getContainer());
         this.inputContainer.appendChild(this.attachButton);
         this.inputContainer.appendChild(this.camButton);
         this.inputContainer.appendChild(this.micButton);
-        this.inputContainer.appendChild(this.sendButton);
+        // this.inputContainer.appendChild(this.sendButton);
     }
 
     async loadImageFile(file: File) {

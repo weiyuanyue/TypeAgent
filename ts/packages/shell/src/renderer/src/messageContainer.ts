@@ -25,11 +25,17 @@ function createTimestampDiv(timestamp: Date, className: string) {
     nameSpan.className = "agent-name";
     timeStampDiv.appendChild(nameSpan); // name placeholder
 
+    // const infoSpan = document.createElement("span");
+    // infoSpan.className = "info";
+    // infoSpan.innerText = "🕒";
+    // timeStampDiv.appendChild(infoSpan);
+
     const dateSpan = document.createElement("span");
     dateSpan.className = "timestring";
     timeStampDiv.appendChild(dateSpan); // time string
 
     dateSpan.innerText = timestamp.toLocaleTimeString();
+
 
     return timeStampDiv;
 }
@@ -424,7 +430,8 @@ export class MessageContainer {
         if (this.metricsDiv === undefined) {
             const metricsContainer = document.createElement("div");
             metricsContainer.className = `chat-message-metrics chat-message-metrics-${this.classNameSuffix}`;
-            this.messageBodyDiv.append(metricsContainer);
+            // this.messageBodyDiv.append(metricsContainer);
+            this.timestampDiv.append(metricsContainer);
 
             const metricsDetails = document.createElement("div");
             metricsDetails.className = "metrics-details";
