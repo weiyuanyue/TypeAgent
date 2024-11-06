@@ -547,8 +547,14 @@ export class ChatView {
         getClientAPI().sendAnswer(questionId, answer);
     }
 
-    getMessageElm() {
+    public getMessageElm() {
         return this.topDiv;
+    }
+
+    public getUserMessageCount(): number {
+        return this.messageDiv.querySelectorAll(
+            ".chat-message-user .chat-message-content",
+        ).length;
     }
 
     async showInputText(message: string) {

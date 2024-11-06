@@ -7,6 +7,14 @@
   max-width: 50rem;
   padding: 2rem;
   margin: 0 auto;
+  opacity: 1;
+  transform: translateY(0);
+  transition: all 1s ease-in;
+  // transition-delay: 5s;
+  &.hidden {
+    transform: translateY(80px);
+    opacity: 0;
+  }
   h1 {
     font-size: 1.75rem;
     line-height: 2rem;

@@ -10,6 +10,21 @@ export class WelcomeView extends HTMLElement {
 
   connectedCallback() {
     this.render();
+    setTimeout(() => {
+      const welcomeSection = this.querySelector("#welcome-section") as HTMLElement | null;
+      if (welcomeSection) {
+        welcomeSection.classList.remove("hidden");
+      }
+    }, 200);
+    const checkMsgCountTimer = setInterval(() => {
+      if (this.chatView?.getUserMessageCount()) {
+        const welcomeSection = this.querySelector("#welcome-section") as HTMLElement | null;
+        if (welcomeSection) {
+          welcomeSection.classList.add("hidden");
+          clearInterval(checkMsgCountTimer);
+        }
+      }
+    }, 500);
   }
 
   clickPrompt(event: MouseEvent) {
@@ -18,7 +33,7 @@ export class WelcomeView extends HTMLElement {
       this.chatView?.addUserMessage(currentTarget?.dataset.query);
       const welcomeSection = this.querySelector("#welcome-section") as HTMLElement | null;
       if (welcomeSection) {
-        welcomeSection.style.display = "none";
+        welcomeSection.classList.add("hidden");
       }
     }
   }
@@ -29,7 +44,7 @@ export class WelcomeView extends HTMLElement {
 
   render() {
     this.innerHTML = `
-    <section class="welcome-section" id="welcome-section">
+    <section class="welcome-section hidden" id="welcome-section">
       <h1>I thought you’d enjoy</h1>
       <div class="welcome-grid">
         <button class="grid-child-btn welcome-btn-1" type="submit" data-query="open paint">
