@@ -390,7 +390,6 @@ export class ChatInput {
         this.inputContainer.appendChild(this.attachButton);
         this.inputContainer.appendChild(this.camButton);
         this.inputContainer.appendChild(this.micButton);
-        // this.inputContainer.appendChild(this.sendButton);
     }
 
     async loadImageFile(file: File) {
