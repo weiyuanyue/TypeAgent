@@ -37,6 +37,15 @@ body {
   font-size: 17px;
 }
 
+.user-textarea.chat-input-empty::before {
+  content: "Message TypeAgent";
+  opacity: 0.6;
+}
+
+.user-textarea:focus::before {
+  display: none;
+}
+
 .replacement-textarea {
   padding: 10px 16px;
   display: block;
@@ -119,7 +128,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  max-width: min(100%, 46.5rem);
+  // max-width: min(100%, 46.5rem);
   margin: 0 auto;
 }
 
@@ -132,6 +141,7 @@ body {
   overflow-y: auto;
   font-family: inherit;
   font-size: inherit;
+  padding:0 5rem;
   // background-color: @chat-bg;
   // background-image: linear-gradient(180deg,#f8f4f2 50%,#fdedde);
   // padding: 25px 10px 25px 10px;
@@ -173,7 +183,7 @@ body {
   padding: 9px;
   background-color: rgb(248, 240, 235);
   align-self: center;
-  width: 300px;
+  width: 400px;
   border-radius: 28px;
   position: relative;
   max-width: min(100%, 46.5rem);
@@ -426,7 +436,7 @@ body {
   width: 40px;
   height: 40px;
   padding: 0;
-  margin: 0 0 7px 0;
+  margin: 0 0 5px 0;
   border: none;
   cursor: pointer;
   display: block;
@@ -453,7 +463,7 @@ body {
   width: 40px;
   height: 40px;
   padding: 0;
-  margin: 0;
+  margin: 0 0 4px 0;
   border: none;
   cursor: pointer;
   display: block;
@@ -516,13 +526,13 @@ body {
 
 .chat-input-container {
   background-color: white;
-  border-radius: 16px;
+  border-radius: 20px;
   display: flex;
   align-items: flex-end;
   min-height: 48px;
   overflow: hidden;
   width: 100%;
-  padding: 8px 8px;
+  padding: 0px 8px;
 }
 
 @keyframes message {

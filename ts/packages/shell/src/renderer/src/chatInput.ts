@@ -9,7 +9,7 @@ import {
     iconCamera,
     iconAttach,
     iconSend,
-    iconNewChat,
+    iconCopilot,
 } from "./icon";
 import { getClientAPI } from "./main";
 import { setContent } from "./setContent";
@@ -42,9 +42,18 @@ export class ExpandableTextarea {
         this.inputContainer.className = "chat-input-container";
         this.textEntry = document.createElement("span");
         this.textEntry.className = className;
+        this.textEntry.classList.add("chat-input-empty");
         this.textEntry.contentEditable = "true";
         this.textEntry.role = "textbox";
         this.textEntry.id = id;
+
+        this.textEntry.addEventListener("keyup", () => {
+            if (this.textEntry.innerText.length > 0) {
+                this.textEntry.classList.remove("chat-input-empty");
+            } else {
+                this.textEntry.classList.add("chat-input-empty");
+            }
+        });
         this.textEntry.addEventListener("keydown", (event) => {
             if (this.entryHandlers.onKeydown !== undefined) {
                 if (!this.entryHandlers.onKeydown(this, event)) {
@@ -78,6 +87,7 @@ export class ExpandableTextarea {
         this.textEntry.addEventListener("focus", () => {
             if (this.entryHandlers.onFocus !== undefined) {
                 this.entryHandlers.onFocus(this);
+                this.addClass("has-focus");
             }
         });
         this.textEntry.addEventListener("blur", () => {
@@ -85,6 +95,16 @@ export class ExpandableTextarea {
                 this.entryHandlers.onBlur(this);
             }
         });
+    }
+
+    addClass(className: string) {
+        if (!this.textEntry.classList.contains(className))
+        this.textEntry.classList.add(className);
+    }
+
+    removeClass(className: string) {
+        if (this.textEntry.classList.contains(className))
+        this.textEntry.classList.remove(className);
     }
 
     getEditedText() {
@@ -162,6 +182,7 @@ export class ExpandableTextarea {
             this.textEntry.innerText = "";
             if (sendButton) {
                 sendButton.disabled = true;
+                this.addClass("chat-input-empty");
             }
         }
     }
@@ -321,7 +342,7 @@ export class ChatInput {
         };
 
         this.newChatButton = document.createElement("button");
-        this.newChatButton.appendChild(iconNewChat());
+        this.newChatButton.appendChild(iconCopilot());
         this.newChatButton.className = "chat-input-button";
         this.newChatButton.type = "button";
         this.newChatButton.addEventListener("click", () => {
