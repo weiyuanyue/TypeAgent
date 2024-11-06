@@ -205,13 +205,13 @@ export function iconCancel(fillColor: string = "currentColor") {
 }
 
 export function iconAttach(fillColor: string = "#1F1F1F") {
-    const path = `<svg id="Layer_1" style="enable-background:new 0 0 30 30;" version="1.1" viewBox="0 0 30 30" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="  M18.399,9.963l-5.862,6.186c-1.049,1.107-1.049,2.902,0,4.009l0,0c1.049,1.107,2.75,1.107,3.8,0l7.287-7.689  c1.836-1.937,1.836-5.079,0-7.016l0,0c-1.836-1.937-4.813-1.937-6.649,0l-8.006,8.448c-2.623,2.768-2.623,7.255,0,10.023l0,0  c2.623,2.768,6.876,2.768,9.499,0l5.632-5.943" style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;"/></svg>`;
+    const path = `<svg id="Layer_1"  fill="${fillColor}" style="enable-background:new 0 0 30 30;" version="1.1" viewBox="0 0 30 30" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="  M18.399,9.963l-5.862,6.186c-1.049,1.107-1.049,2.902,0,4.009l0,0c1.049,1.107,2.75,1.107,3.8,0l7.287-7.689  c1.836-1.937,1.836-5.079,0-7.016l0,0c-1.836-1.937-4.813-1.937-6.649,0l-8.006,8.448c-2.623,2.768-2.623,7.255,0,10.023l0,0  c2.623,2.768,6.876,2.768,9.499,0l5.632-5.943" style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;"/></svg>`;
 
     return createSVGElement(path);
 }
 
 export function iconSend(fillColor: string = "#1F1F1F") {
-    const path = `<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="size-6"><path d="M4.20889 10.7327C3.9232 11.0326 3.93475 11.5074 4.23467 11.7931C4.5346 12.0788 5.00933 12.0672 5.29502 11.7673L11.2495 5.516V20.25C11.2495 20.6642 11.5853 21 11.9995 21C12.4137 21 12.7495 20.6642 12.7495 20.25V5.51565L18.7043 11.7673C18.99 12.0672 19.4648 12.0788 19.7647 11.7931C20.0646 11.5074 20.0762 11.0326 19.7905 10.7327L12.7238 3.31379C12.5627 3.14474 12.3573 3.04477 12.1438 3.01386C12.0971 3.00477 12.0489 3 11.9995 3C11.9498 3 11.9012 3.00483 11.8543 3.01406C11.6412 3.04518 11.4363 3.14509 11.2756 3.31379L4.20889 10.7327Z"></path></svg>`;
+    const path = `<svg viewBox="0 0 24 24" fill="${fillColor}" xmlns="http://www.w3.org/2000/svg" class="size-6"><path d="M4.20889 10.7327C3.9232 11.0326 3.93475 11.5074 4.23467 11.7931C4.5346 12.0788 5.00933 12.0672 5.29502 11.7673L11.2495 5.516V20.25C11.2495 20.6642 11.5853 21 11.9995 21C12.4137 21 12.7495 20.6642 12.7495 20.25V5.51565L18.7043 11.7673C18.99 12.0672 19.4648 12.0788 19.7647 11.7931C20.0646 11.5074 20.0762 11.0326 19.7905 10.7327L12.7238 3.31379C12.5627 3.14474 12.3573 3.04477 12.1438 3.01386C12.0971 3.00477 12.0489 3 11.9995 3C11.9498 3 11.9012 3.00483 11.8543 3.01406C11.6412 3.04518 11.4363 3.14509 11.2756 3.31379L4.20889 10.7327Z"></path></svg>`;
 
     return createSVGElement(path);
 }
