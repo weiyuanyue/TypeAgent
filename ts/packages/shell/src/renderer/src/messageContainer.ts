@@ -573,6 +573,6 @@ export class MessageContainer {
         const icon = iconRoadrunner();
         icon.getElementsByTagName("svg")[0].style.fill = color;
         icon.className = "chat-message-explained-icon";
-        this.messageDiv.appendChild(icon);
+        this.messageDiv.firstChild!.appendChild(icon);
     }
 }
