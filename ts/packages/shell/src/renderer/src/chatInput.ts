@@ -103,8 +103,8 @@ export class ExpandableTextarea {
                 const items = clipboardData.items;
                 if (items.length > 0) {
                     event.preventDefault();
-                    items[0].getAsString((text) => { 
-                        this.textEntry.innerText += text;
+                    items[0].getAsString((text) => {
+                        pasteIntoContentEditable(this.textEntry, text);
                         if (this.textEntry.innerText.length > 0) {
                             this.textEntry.classList.remove("chat-input-empty");
                             if (sendButton) sendButton.disabled = false;
@@ -491,4 +491,32 @@ export class ChatInput {
     public focus() {
         this.textarea.focus();
     }
+}
+
+function pasteIntoContentEditable(element, textToPaste) {
+  const selection = window.getSelection();
+
+  if (selection && selection.rangeCount > 0) {
+    const range = selection.getRangeAt(0);
+
+    // Check if the selection is within the element
+    if (element.contains(range.commonAncestorContainer)) {
+      // Remove any selected text before inserting
+      range.deleteContents();
+
+      // Create a text node with the content to paste
+      const textNode = document.createTextNode(textToPaste);
+
+      // Insert the text node at the range (cursor) position
+      range.insertNode(textNode);
+
+      // Move the cursor after the pasted text
+      range.setStartAfter(textNode);
+      range.setEndAfter(textNode);
+      
+      // Collapse the range to make it a single insertion point after the new text
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  }
 }
