@@ -58,7 +58,7 @@ export class WelcomeView extends HTMLElement {
       cover: "./assets/music.jpeg",
     }, {
       title: "Explore what's happening worldwide today",
-      query: "go to new york times",
+      query: "go to New York Times in browser",
       cover: "./assets/news.jpeg",
     }, {
       title: "See beyond the ordinary with your camera",
