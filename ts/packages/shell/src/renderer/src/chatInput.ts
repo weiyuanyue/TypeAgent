@@ -262,6 +262,7 @@ export class ChatInput {
     constructor(
         inputId: string,
         buttonId: string,
+        chatView: ChatView,
         messageHandler: (message: string) => void,
         onChange?: (eta: ExpandableTextarea) => void,
         onKeydown?: (eta: ExpandableTextarea, event: KeyboardEvent) => boolean,
@@ -365,7 +366,7 @@ export class ChatInput {
         this.newChatButton.className = "chat-input-button";
         this.newChatButton.type = "button";
         this.newChatButton.addEventListener("click", () => {
-            window.location.reload();
+            chatView.clear();
         });
         this.inputContainer.append(this.newChatButton);
 
