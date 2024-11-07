@@ -1,3 +1,26 @@
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(80px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeOut {
+      from {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      to {
+        opacity: 0;
+        transform: translateY(80px);
+        display: none;
+      }
+    }
+
 .welcome-section {
   position: fixed;
   top:0;
@@ -7,13 +30,9 @@
   max-width: 50rem;
   padding: 2rem;
   margin: 0 auto;
-  opacity: 1;
-  transform: translateY(0);
-  transition: all 1s ease-in;
-  // transition-delay: 5s;
+  animation: fadeIn 1s forwards;
   &.hidden {
-    transform: translateY(80px);
-    opacity: 0;
+    animation: fadeOut 0.5s forwards;
   }
   h1 {
     font-size: 1.75rem;

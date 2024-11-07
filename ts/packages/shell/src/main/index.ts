@@ -765,9 +765,6 @@ app.whenReady().then(async () => {
         mainWindow?.setTitle(
             `TypeAgent`,
         );
-        // mainWindow?.setIcon(
-        //     `TypeAgent`,
-        // );
         mainWindow?.show();
 
         // Send settings asap
