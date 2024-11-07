@@ -11,14 +11,17 @@ export class WelcomeView extends HTMLElement {
   connectedCallback() {
     this.render();
     const checkMsgCountTimer = setInterval(() => {
-      if (this.chatView?.getUserMessageCount()) {
-        const welcomeSection = this.querySelector("#welcome-section") as HTMLElement | null;
-        if (welcomeSection) {
+      const welcomeSection = this.querySelector("#welcome-section") as HTMLElement | null;
+      if (welcomeSection) {
+        if (this.chatView?.getUserMessageCount()) {
           welcomeSection.classList.add("hidden");
-          clearInterval(checkMsgCountTimer);
+        } else if (this.chatView?.getUserMessageCount() === 0) {
+          welcomeSection.classList.remove("hidden");
         }
+      } else {
+        clearInterval(checkMsgCountTimer);
       }
-    }, 500);
+    }, 1000);
   }
 
   clickPrompt(event: MouseEvent) {
@@ -40,32 +43,56 @@ export class WelcomeView extends HTMLElement {
     this.chatView = chatView;
   }
 
+  shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+
   render() {
+    const list = [{
+      title: "Your next musical obsession awaits here",
+      query: "play some classic music",
+      cover: "./assets/music.jpeg",
+    }, {
+      title: "Explore what's happening worldwide today",
+      query: "open Bing News in browser",
+      cover: "./assets/news.jpeg",
+    }, {
+      title: "See beyond the ordinary with your camera",
+      query: "@config agent desktop; launch the camera app.",
+      cover: "./assets/camera.jpeg",
+    }];
+
+  const shuffledList = this.shuffleArray(list);
+
     this.innerHTML = `
     <section class="welcome-section" id="welcome-section">
       <h1>I thought you’d enjoy</h1>
       <div class="welcome-grid">
-        <button class="grid-child-btn welcome-btn-1" type="submit" data-query="open paint">
+        <button class="grid-child-btn welcome-btn-1" type="submit" data-query="${shuffledList[0].query}">
           <div class="grid-child welcome-cover">
-            <img class="welcome-img" src="https://copilot.microsoft.com/th?id=ODSWG.a0b672f5-fe18-4863-bba0-f4895a1d0b43&forceJpeg=1&o=6">
+            <img class="welcome-img" src="${shuffledList[0].cover}">
             <div class="welcome-title">
-              <h2>Play some music</h2>
+              <h2>${shuffledList[0].title}</h2>
             </div>
           </div>
         </button>
-        <button class="grid-child-btn welcome-btn-2" type="submit" data-query="open Bing News in browser">
+        <button class="grid-child-btn welcome-btn-2" type="submit" data-query="${shuffledList[1].query}">
           <div class="grid-child">
-            <img class="welcome-img" src="./assets/news.jpeg">
+            <img class="welcome-img" src="${shuffledList[1].cover}">
             <div class="welcome-title">
-              <h2>Explore what's happening worldwide today</h2>
+              <h2>${shuffledList[1].title}</h2>
             </div>
           </div>
         </button>
-        <button class="grid-child-btn welcome-btn-3" type="submit" data-query="@config agent desktop; launch the camera app.">
+        <button class="grid-child-btn welcome-btn-3" type="submit" data-query="${shuffledList[2].query}">
           <div class="grid-child">
-            <img class="welcome-img" src="./assets/camera.jpeg">
+            <img class="welcome-img" src="${shuffledList[2].cover}">
             <div class="welcome-title">
-              <h2>See beyond the ordinary with your camera</h2>
+              <h2>${shuffledList[2].title}</h2>
             </div>
           </div>
         </button>
