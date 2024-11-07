@@ -95,6 +95,24 @@ export class ExpandableTextarea {
                 this.entryHandlers.onBlur(this);
             }
         });
+
+        // do not allow pasting rich content
+        this.textEntry.addEventListener("paste", (event: ClipboardEvent) => {
+            const clipboardData = event?.clipboardData;
+            if (clipboardData) {
+                const items = clipboardData.items;
+                if (items.length > 0) {
+                    event.preventDefault();
+                    items[0].getAsString((text) => { 
+                        this.textEntry.innerText += text;
+                        if (this.textEntry.innerText.length > 0) {
+                            this.textEntry.classList.remove("chat-input-empty");
+                            if (sendButton) sendButton.disabled = false;
+                        }
+                     });
+                }
+            }
+        });
     }
 
     addClass(className: string) {
@@ -271,6 +289,7 @@ export class ChatInput {
             },
             this.sendButton,
         );
+
 
         this.textarea.getTextEntry().ondragenter = (e: DragEvent) => {
             if (!this.dragEnabled) {
