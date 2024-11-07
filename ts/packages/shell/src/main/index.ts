@@ -8,7 +8,6 @@ import {
     shell,
     BrowserWindow,
     globalShortcut,
-    dialog,
     DevicePermissionHandlerHandlerDetails,
     WebContents,
     BrowserView,

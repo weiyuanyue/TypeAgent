@@ -54,11 +54,11 @@ export class WelcomeView extends HTMLElement {
   render() {
     const list = [{
       title: "Your next musical obsession awaits here",
-      query: "play some classic music",
+      query: "play some classical music",
       cover: "./assets/music.jpeg",
     }, {
       title: "Explore what's happening worldwide today",
-      query: "open Bing News in browser",
+      query: "go to new york times",
       cover: "./assets/news.jpeg",
     }, {
       title: "See beyond the ordinary with your camera",
