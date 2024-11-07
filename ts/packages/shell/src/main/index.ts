@@ -628,10 +628,10 @@ async function initializeSpeech(dispatcher: Dispatcher) {
         });
     } else {
         ipcMain.handle("get-speech-token", async () => {
-            dialog.showErrorBox(
-                "Azure Speech Service: Missing configuration",
-                "Environment variable SPEECH_SDK_KEY or SPEECH_SDK_REGION is missing.  Switch to local whisper or provide the configuration and restart.",
-            );
+            // dialog.showErrorBox(
+            //     "Azure Speech Service: Missing configuration",
+            //     "Environment variable SPEECH_SDK_KEY or SPEECH_SDK_REGION is missing.  Switch to local whisper or provide the configuration and restart.",
+            // );
         });
         debugShellError("Speech: no key or region");
     }
