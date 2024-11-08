@@ -484,7 +484,7 @@ export class ChatInput {
         if (this.textarea.getTextEntry().innerText?.length === 0) {
             setTimeout(() => {
                 this.getInputContainer()?.classList.remove("chat-input-focus");
-            }, 500);
+            }, 250);
         }
     }
 
