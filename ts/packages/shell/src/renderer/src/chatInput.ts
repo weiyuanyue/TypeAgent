@@ -9,7 +9,7 @@ import {
     iconCamera,
     iconAttach,
     iconSend,
-    iconCopilot,
+    iconNewChat,
 } from "./icon";
 import { getClientAPI } from "./main";
 import { setContent } from "./setContent";
@@ -362,7 +362,7 @@ export class ChatInput {
         };
 
         this.newChatButton = document.createElement("button");
-        this.newChatButton.appendChild(iconCopilot());
+        this.newChatButton.appendChild(iconNewChat());
         this.newChatButton.className = "chat-input-button";
         this.newChatButton.type = "button";
         this.newChatButton.addEventListener("click", () => {

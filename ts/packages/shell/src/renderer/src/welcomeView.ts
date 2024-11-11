@@ -43,7 +43,7 @@ export class WelcomeView extends HTMLElement {
     this.chatView = chatView;
   }
 
-  shuffleArray(array: []): any[] {
+  shuffleArray(array: any[]): any[] {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [array[i], array[j]] = [array[j], array[i]];
@@ -64,35 +64,47 @@ export class WelcomeView extends HTMLElement {
       title: "See beyond the ordinary with your camera",
       query: "@config agent desktop; launch the camera app.",
       cover: "./assets/camera.jpeg",
+    }, {
+      title: "Begin your art journey here",
+      query: "@config agent desktop; open paint.",
+      cover: "./assets/paint.jpeg",
     }];
 
   const shuffledList = this.shuffleArray(list);
 
     this.innerHTML = `
     <section class="welcome-section" id="welcome-section">
-      <h1>I thought you’d enjoy</h1>
+      <h1>Welcome to Chati</h1>
       <div class="welcome-grid">
-        <button class="grid-child-btn welcome-btn-1" type="submit" data-query="${shuffledList[0].query}">
-          <div class="grid-child welcome-cover">
-            <img class="welcome-img" src="${shuffledList[0].cover}">
+        <button class="grid-child-btn welcome-btn-2" type="submit" data-query="${shuffledList[0].query}">
+          <div class="grid-child">
             <div class="welcome-title">
               <h2>${shuffledList[0].title}</h2>
             </div>
+            <img class="welcome-img" src="${shuffledList[0].cover}">
           </div>
         </button>
-        <button class="grid-child-btn welcome-btn-2" type="submit" data-query="${shuffledList[1].query}">
+        <button class="grid-child-btn welcome-btn-3" type="submit" data-query="${shuffledList[1].query}">
           <div class="grid-child">
-            <img class="welcome-img" src="${shuffledList[1].cover}">
             <div class="welcome-title">
               <h2>${shuffledList[1].title}</h2>
             </div>
+            <img class="welcome-img" src="${shuffledList[1].cover}">
           </div>
         </button>
-        <button class="grid-child-btn welcome-btn-3" type="submit" data-query="${shuffledList[2].query}">
+        <button class="grid-child-btn welcome-btn-2" type="submit" data-query="${shuffledList[2].query}">
           <div class="grid-child">
             <img class="welcome-img" src="${shuffledList[2].cover}">
             <div class="welcome-title">
               <h2>${shuffledList[2].title}</h2>
+            </div>
+          </div>
+        </button>
+        <button class="grid-child-btn welcome-btn-3" type="submit" data-query="${shuffledList[3].query}">
+          <div class="grid-child">
+            <img class="welcome-img" src="${shuffledList[3].cover}">
+            <div class="welcome-title">
+              <h2>${shuffledList[3].title}</h2>
             </div>
           </div>
         </button>
