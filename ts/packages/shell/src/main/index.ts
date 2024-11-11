@@ -689,7 +689,7 @@ app.whenReady().then(async () => {
             );
 
             mainWindow?.setTitle(
-                `TypeAgent`,
+                `Chati`,
             );
         }
 
@@ -762,7 +762,7 @@ app.whenReady().then(async () => {
         );
 
         mainWindow?.setTitle(
-            `TypeAgent`,
+            `Chati`,
         );
         mainWindow?.show();
 
