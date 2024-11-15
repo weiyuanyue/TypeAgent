@@ -34,6 +34,7 @@ import { getNotifyCommandHandlers } from "../handlers/notifyCommandHandler.js";
 import { processRequests } from "../utils/interactive.js";
 import { getConsoleRequestIO } from "../handlers/common/interactiveIO.js";
 import {
+    getDefaultSubCommandDescriptor,
     getParsedCommand,
     getPrompt,
     processCommandNoLock,
@@ -47,17 +48,19 @@ import {
     getSystemTemplateSchema,
 } from "../translation/actionTemplate.js";
 import { getTokenCommandHandlers } from "../handlers/tokenCommandHandler.js";
-import { Actions } from "agent-cache";
+import { Actions, FullAction } from "agent-cache";
 import {
-    getActionInfo,
-    getParameterNames,
-    getParameterType,
-    getTranslatorActionInfos,
-    validateAction,
-} from "../translation/actionInfo.js";
+    getActionSchema,
+    getTranslatorActionSchemas,
+} from "../translation/actionSchema.js";
 import { executeActions } from "../action/actionHandlers.js";
 import { getObjectProperty } from "common-utils";
 import { dispatcherAgent } from "../dispatcher/dispatcherAgent.js";
+import {
+    getParameterType,
+    getParameterNames,
+    validateAction,
+} from "action-schema";
 
 function executeSystemAction(
     action: AppAction,
@@ -101,23 +104,36 @@ class HelpCommandHandler implements CommandHandler {
             );
 
             const command = getParsedCommand(result);
-            if (result.descriptor !== undefined) {
-                displayResult(getUsage(command, result.descriptor), context);
-            } else {
-                if (result.table === undefined) {
-                    throw new Error(`Unknown command '${params.args.command}'`);
-                }
-                if (result.suffix.length !== 0) {
-                    displayError(
-                        `ERROR: '${result.suffix}' is not a subcommand for '@${command}'`,
-                        context,
-                    );
-                }
-                displayResult(
-                    getHandlerTableUsage(result.table, command, systemContext),
+            if (result.suffix.length !== 0) {
+                displayError(
+                    `ERROR: '${result.suffix}' is not a subcommand for '@${command}'`,
                     context,
                 );
             }
+
+            if (result.descriptor !== undefined) {
+                const defaultSubCommand =
+                    result.table !== undefined
+                        ? getDefaultSubCommandDescriptor(result.table)
+                        : undefined;
+
+                if (defaultSubCommand !== result.descriptor) {
+                    displayResult(
+                        getUsage(command, result.descriptor),
+                        context,
+                    );
+                    return;
+                }
+            }
+
+            if (result.table === undefined) {
+                throw new Error(`Unknown command '${params.args.command}'`);
+            }
+
+            displayResult(
+                getHandlerTableUsage(result.table, command, systemContext),
+                context,
+            );
         }
     }
 }
@@ -189,7 +205,7 @@ class ActionCommandHandler implements CommandHandler {
         const systemContext = context.sessionContext.agentContext;
         const { translatorName, actionName } = params.args;
         const config = systemContext.agents.getTranslatorConfig(translatorName);
-        const actionInfos = getTranslatorActionInfos(config, translatorName);
+        const actionInfos = getTranslatorActionSchemas(config, translatorName);
         const actionInfo = actionInfos.get(actionName);
         if (actionInfo === undefined) {
             throw new Error(
@@ -197,14 +213,18 @@ class ActionCommandHandler implements CommandHandler {
             );
         }
 
-        const action = {
+        const action: AppAction = {
             translatorName,
             actionName,
-            parameters: (params.flags.parameters as any) ?? {},
+            parameters: params.flags.parameters,
         };
 
         validateAction(actionInfo, action, true);
-        return executeActions(Actions.fromFullActions([action]), context);
+
+        return executeActions(
+            Actions.fromFullActions([action as FullAction]),
+            context,
+        );
     }
     public async getCompletion(
         context: SessionContext<CommandHandlerContext>,
@@ -231,7 +251,7 @@ class ActionCommandHandler implements CommandHandler {
                 if (config === undefined) {
                     continue;
                 }
-                const actionInfos = getTranslatorActionInfos(
+                const actionInfos = getTranslatorActionSchemas(
                     config,
                     translatorName,
                 );
@@ -247,7 +267,10 @@ class ActionCommandHandler implements CommandHandler {
                     actionName: params.args?.actionName,
                     parameters: params.flags?.parameters,
                 };
-                const actionInfo = getActionInfo(action, systemContext);
+                const actionInfo = getActionSchema(
+                    action,
+                    systemContext.agents,
+                );
                 if (actionInfo === undefined) {
                     continue;
                 }
@@ -275,12 +298,15 @@ class ActionCommandHandler implements CommandHandler {
                     parameters: params.flags?.parameters,
                 };
 
-                const actionInfo = getActionInfo(action, systemContext);
-                if (actionInfo === undefined) {
+                const actionSchema = getActionSchema(
+                    action,
+                    systemContext.agents,
+                );
+                if (actionSchema === undefined) {
                     continue;
                 }
                 const propertyName = name.substring(2);
-                const fieldType = getParameterType(actionInfo, propertyName);
+                const fieldType = getParameterType(actionSchema, propertyName);
                 if (fieldType?.type === "string-union") {
                     completions.push(...fieldType.typeEnum);
                     continue;

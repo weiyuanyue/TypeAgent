@@ -270,6 +270,8 @@ async function executeAction(
             result.entities,
             "assistant",
             systemContext.requestId,
+            undefined,
+            result.additionalInstructions,
         );
     }
 
@@ -396,9 +398,11 @@ function addToConversationMemory(
         );
         if (newEntities.length > 0) {
             systemContext.conversationManager.queueAddMessage(
-                message,
-                newEntities,
-                new Date(),
+                {
+                    text: message,
+                    knowledge: newEntities,
+                    timestamp: new Date(),
+                },
                 false,
             );
         }

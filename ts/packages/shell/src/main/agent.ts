@@ -170,6 +170,10 @@ class ShellOpenWebContentView implements CommandHandler {
                 targetUrl = new URL("https://www.target.com/");
 
                 break;
+            case "markdown":
+                targetUrl = new URL("http://localhost:9001/");
+
+                break;
             default:
                 targetUrl = new URL(params.args.site);
         }
@@ -191,7 +195,7 @@ const handlers: CommandHandlerTable = {
     commands: {
         show: {
             description: "Show shell settings",
-            defaultSubCommand: new ShellShowSettingsCommandHandler(),
+            defaultSubCommand: "settings",
             commands: {
                 settings: new ShellShowSettingsCommandHandler(),
                 help: new ShellShowHelpCommandHandler(),

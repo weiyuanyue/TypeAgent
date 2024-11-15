@@ -6,29 +6,31 @@
 
 import { exec } from "child_process";
 import path from "path";
-import { promisify } from "util";
 import { fileURLToPath } from "url";
-import { CodeDocumentation } from "code-processor";
+import { promisify } from "util";
+
+import { CodeDocumentation } from "./codeDocSchema.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const execPromise = promisify(exec);
 
-export type IdType = string;
+export type ChunkId = string;
 
 export interface Blob {
     start: number; // int; 0-based!
     lines: string[];
+    breadcrumb?: boolean;
 }
 
 export interface Chunk {
     // Names here must match names in chunker.py.
-    id: IdType;
+    id: ChunkId;
     treeName: string;
     blobs: Blob[];
-    parentId: IdType;
-    children: IdType[];
+    parentId: ChunkId;
+    children: ChunkId[];
     filename?: string; // Set on receiving end to reduce JSON size.
     docs?: CodeDocumentation; // Computed on receiving end from file docs.
 }

@@ -13,6 +13,7 @@ import {
     DataProtectionScope,
     PersistenceCreator,
 } from "@azure/msal-node-extensions";
+import { isImageFileType } from "common-utils";
 
 export function getStorage(name: string, baseDir: string): Storage {
     const getFullPath = (storagePath: string) => {
@@ -29,7 +30,9 @@ export function getStorage(name: string, baseDir: string): Storage {
                 .filter((item) =>
                     options?.dirs ? item.isDirectory() : item.isFile(),
                 )
-                .map((item) => item.name);
+                .map((item) =>
+                    options?.fullPath ? getFullPath(item.name) : item.name,
+                );
         },
         exists: async (storagePath: string) => {
             const fullPath = getFullPath(storagePath);
@@ -45,7 +48,16 @@ export function getStorage(name: string, baseDir: string): Storage {
             if (!fs.existsSync(dirName)) {
                 await fs.promises.mkdir(dirName, { recursive: true });
             }
-            return fs.promises.writeFile(fullPath, data);
+
+            // images are passed in as base64 strings so we need to encode them properly on disk
+            if (isImageFileType(path.extname(storagePath))) {
+                return fs.promises.writeFile(
+                    fullPath,
+                    Buffer.from(data, "base64"),
+                );
+            } else {
+                return fs.promises.writeFile(fullPath, data);
+            }
         },
         delete: async (storagePath: string) => {
             const fullPath = getFullPath(storagePath);

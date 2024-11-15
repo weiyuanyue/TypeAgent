@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 import { escapeMatch } from "../utils/regexp.js";
-import { ConstructionPart } from "./constructions.js";
+import { ConstructionPart, WildcardMode } from "./constructions.js";
 
 export type MatchSetJSON = {
     matches: string[];
@@ -60,7 +60,8 @@ export class MatchSet {
         public readonly namespace: string | undefined,
         private readonly index: number = -1, // Assign an index as id for serialization and reference in construction
     ) {
-        // Case insensitive match, use lower case to avoid duplicates with only difference in case.
+        // Case insensitive match
+        // TODO: non-diacritic match
         this.matches = new Set(Array.from(matches).map((m) => m.toLowerCase()));
     }
 
@@ -130,7 +131,7 @@ export class MatchSet {
 export type MatchPartJSON = {
     matchSet: string;
     optional: true | undefined;
-    wildcard: true | undefined;
+    wildcardMode: WildcardMode | undefined;
     transformInfos?: TransformInfo[] | undefined;
 };
 
@@ -138,7 +139,7 @@ export class MatchPart {
     constructor(
         public readonly matchSet: MatchSet,
         public readonly optional: boolean,
-        public readonly wildcard: boolean,
+        public readonly wildcardMode: WildcardMode,
         public readonly transformInfos: Readonly<TransformInfo>[] | undefined,
     ) {}
 
@@ -161,7 +162,10 @@ export class MatchPart {
         return {
             matchSet: this.matchSet.fullName,
             optional: this.optional ? true : undefined,
-            wildcard: this.wildcard ? true : undefined,
+            wildcardMode:
+                this.wildcardMode !== WildcardMode.Disabled
+                    ? this.wildcardMode
+                    : undefined,
             transformInfos: this.transformInfos,
         };
     }
@@ -171,7 +175,7 @@ export class MatchPart {
             isMatchPart(e) &&
             e.matchSet === this.matchSet &&
             e.optional === this.optional &&
-            e.wildcard === this.wildcard &&
+            e.wildcardMode === this.wildcardMode &&
             toTransformInfosKey(e.transformInfos) ===
                 toTransformInfosKey(this.transformInfos)
         );
@@ -185,16 +189,16 @@ export function createMatchPart(
         transformInfos?: TransformInfo[];
         optional?: boolean; // default false
         canBeMerged?: boolean; // default true
-        canBeWildcard?: boolean; // default false
+        wildcardMode?: WildcardMode; // default false
     },
 ): ConstructionPart {
     const canBeMerged = options?.canBeMerged ?? true;
     const optional = options?.optional ?? false;
-    const wildcard = options?.canBeWildcard ?? false;
+    const wildcardMode = options?.wildcardMode ?? WildcardMode.Disabled;
     const transformInfos = options?.transformInfos;
 
     // Error checking
-    if (wildcard && transformInfos === undefined) {
+    if (wildcardMode && transformInfos === undefined) {
         throw new Error("Wildcard part must be captured");
     }
     if (optional && transformInfos !== undefined) {
@@ -215,7 +219,7 @@ export function createMatchPart(
         matchSetNamespace,
     );
 
-    return new MatchPart(matchSet, optional, wildcard, transformInfos);
+    return new MatchPart(matchSet, optional, wildcardMode, transformInfos);
 }
 
 export function isMatchPart(part: ConstructionPart): part is MatchPart {

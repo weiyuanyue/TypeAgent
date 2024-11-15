@@ -5,10 +5,8 @@ import * as sqlite from "better-sqlite3";
 
 import {
     AssignedId,
-    ColumnType,
     getTypeSerializer,
     sql_makeInClause,
-    SqlColumnType,
     tablePath,
 } from "./common.js";
 import { createKeyValueTable } from "./keyValueTable.js";
@@ -18,6 +16,7 @@ import {
     TextIndex,
     TextIndexSettings,
 } from "knowledge-processor";
+import { ValueType, ValueDataType } from "knowledge-processor";
 import {
     asyncArray,
     collections,
@@ -187,25 +186,29 @@ export function createStringTable(
 
 export interface TextTable<TTextId = any, TSourceId = any>
     extends TextIndex<TTextId, TSourceId> {
-    getHitsSync(values: string[]): IterableIterator<ScoredItem<TSourceId>>;
+    getExactHits(
+        values: string[],
+        join?: string,
+    ): IterableIterator<ScoredItem<TSourceId>>;
 }
 
 export async function createTextIndex<
-    TTextId extends ColumnType = number,
-    TSourceId extends ColumnType = string,
+    TTextId extends ValueType = number,
+    TSourceId extends ValueType = string,
 >(
     settings: TextIndexSettings,
     db: sqlite.Database,
     baseName: string,
-    textType: SqlColumnType<TTextId>,
-    valueType: SqlColumnType<TSourceId>,
+    textIdType: ValueDataType<TTextId>,
+    valueType: ValueDataType<TSourceId>,
     ensureExists: boolean = true,
 ): Promise<TextTable<TTextId, TSourceId>> {
     type TextId = number;
-    const [isIdInt, serializer] = getTypeSerializer<TTextId>(textType);
+    const [isIdInt, serializer] = getTypeSerializer<TTextId>(textIdType);
     const textTable = createStringTable(
         db,
         tablePath(baseName, "entries"),
+        false,
         ensureExists,
     );
     const postingsTable = createKeyValueTable<number, TSourceId>(
@@ -238,16 +241,19 @@ export async function createTextIndex<
         getId,
         getIds,
         getText,
-        getHitsSync,
+        getExactHits,
         getNearest,
         getNearestMultiple,
         getNearestText,
+        getNearestTextMultiple,
         getNearestHits,
         getNearestHitsMultiple,
         put,
         putMultiple,
+        addSources,
         nearestNeighbors,
         nearestNeighborsText,
+        nearestNeighborsPairs,
         remove,
     };
 
@@ -342,12 +348,27 @@ export async function createTextIndex<
         return ids;
     }
 
-    function getHitsSync(
+    async function addSources(
+        textId: TTextId,
+        postings: TSourceId[],
+    ): Promise<void> {
+        if (postings && postings.length > 0) {
+            postingsTable.putSync(postings, serializer.deserialize(textId));
+        }
+    }
+
+    function* getExactHits(
         values: string[],
+        join?: string,
     ): IterableIterator<ScoredItem<TSourceId>> {
         // TODO: use a JOIN
         const textIds = [...textTable.getIds(values)];
-        return postingsTable.getHitsSync(textIds);
+        const hits = postingsTable.getHits(textIds, join);
+        if (hits) {
+            for (const hit of hits) {
+                yield hit;
+            }
+        }
     }
 
     async function getNearest(
@@ -394,20 +415,20 @@ export async function createTextIndex<
         minScore?: number,
         scoreBoost?: number,
     ): Promise<void> {
-        let matchedTextIds = await getExactAndNearestTextIdsScored(
+        let scoredIds = await getExactAndNearestTextIdsScored(
             value,
             maxMatches,
             minScore,
         );
-        if (matchedTextIds && matchedTextIds.length > 0) {
-            for (const textId of matchedTextIds) {
-                const scoredPostings = postingsTable.iterateScored(
-                    textId.item,
-                    scoreBoost ? scoreBoost * textId.score : textId.score,
-                );
-                if (scoredPostings) {
-                    hitTable.addMultipleScored(scoredPostings);
-                }
+        if (scoredIds) {
+            scoredIds = boostScore(
+                knowLib.sets.removeUndefined(scoredIds),
+                scoreBoost,
+            );
+            const scoredPostings =
+                postingsTable.iterateMultipleScored(scoredIds);
+            if (scoredPostings) {
+                hitTable.addMultipleScored(scoredPostings);
             }
         }
     }
@@ -419,9 +440,21 @@ export async function createTextIndex<
         minScore?: number,
         scoreBoost?: number,
     ): Promise<void> {
-        return asyncArray.forEachAsync(values, settings.concurrency, (v) =>
-            getNearestHits(v, hitTable, maxMatches, minScore, scoreBoost),
+        let matchedTextIds = await asyncArray.mapAsync(
+            values,
+            settings.concurrency,
+            (value) =>
+                getExactAndNearestTextIdsScored(value, maxMatches, minScore),
         );
+        if (matchedTextIds && matchedTextIds.length > 0) {
+            let scoredIds = knowLib.sets.removeUndefined(matchedTextIds).flat();
+            scoredIds = boostScore(scoredIds, scoreBoost);
+            const scoredPostings =
+                postingsTable.iterateMultipleScored(scoredIds);
+            if (scoredPostings) {
+                hitTable.addMultipleScored(scoredPostings);
+            }
+        }
     }
 
     async function getNearestText(
@@ -437,6 +470,21 @@ export async function createTextIndex<
                 : matches.map((m) => serializer.serialize(m));
         }
         return [];
+    }
+
+    async function getNearestTextMultiple(
+        values: string[],
+        maxMatches?: number,
+        minScore?: number,
+    ): Promise<TTextId[]> {
+        // TODO: optimize by lowering into DB if possible
+        const matches = await asyncArray.mapAsync(
+            values,
+            settings.concurrency,
+            (t) => getNearestText(t, maxMatches, minScore),
+        );
+
+        return knowLib.sets.intersectUnionMultiple(...matches) ?? [];
     }
 
     async function nearestNeighbors(
@@ -472,7 +520,14 @@ export async function createTextIndex<
             maxMatches,
             minScore,
         );
-        return isIdInt ? matches : matches.map((m) => serializer.serialize(m));
+        return isIdInt
+            ? matches
+            : matches.map((m) => {
+                  return {
+                      score: m.score,
+                      item: serializer.serialize(m.item),
+                  };
+              });
     }
 
     async function nearestNeighborsTextIds(
@@ -499,6 +554,29 @@ export async function createTextIndex<
             matches.splice(0, 0, { score: 1.0, item: textId });
         }
         return matches;
+    }
+
+    async function nearestNeighborsPairs(
+        value: string,
+        maxMatches: number,
+        minScore?: number,
+    ): Promise<ScoredItem<TextBlock<TSourceId>>[]> {
+        const matches = await nearestNeighborsTextIds(
+            value,
+            maxMatches,
+            minScore,
+        );
+        const results = matches.map((m) => {
+            return {
+                score: m.score,
+                item: {
+                    type: TextBlockType.Sentence,
+                    value: isIdInt ? m.item : serializer.serialize(m.item),
+                    sourceIds: postingsTable.getSync(m.item) ?? [],
+                },
+            };
+        });
+        return results;
     }
 
     // TODO: Optimize
@@ -589,7 +667,7 @@ export async function createTextIndex<
         matchedIds = [
             ...knowLib.sets.unionMultipleScored(matchedIds, nearestIds),
         ];
-        return matchedIds;
+        return matchedIds.length > 0 ? matchedIds : undefined;
     }
 
     async function getNearestTextIds(
@@ -624,5 +702,20 @@ export async function createTextIndex<
         return semanticIndex
             ? semanticIndex.nearestNeighbors(value, maxMatches, minScore)
             : undefined;
+    }
+
+    function boostScore(
+        items: ScoredItem<TextId>[],
+        boost?: number,
+    ): ScoredItem<TextId>[] {
+        if (boost) {
+            return items.map((scoredItem) => {
+                return {
+                    item: scoredItem.item,
+                    score: scoredItem.score * boost,
+                };
+            });
+        }
+        return items;
     }
 }

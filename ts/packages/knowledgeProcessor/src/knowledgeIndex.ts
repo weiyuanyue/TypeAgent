@@ -18,6 +18,7 @@ import {
 import {
     HitTable,
     intersectMultiple,
+    intersectUnionMultiple,
     removeUndefined,
     union,
     unionArrays,
@@ -25,16 +26,8 @@ import {
     unionMultipleScored,
 } from "./setOperations.js";
 import { TextBlock, TextBlockType } from "./text.js";
-import { TemporalLog, createTemporalLog } from "./temporal.js";
 import { TextEmbeddingModel } from "aiclient";
-
-export interface KeyValueIndex<TKeyId = any, TValueId = any> {
-    get(id: TKeyId): Promise<TValueId[] | undefined>;
-    getMultiple(ids: TKeyId[], concurrency?: number): Promise<TValueId[][]>;
-    put(postings: TValueId[], id?: TKeyId): Promise<TKeyId>;
-    replace(postings: TValueId[], id: TKeyId): Promise<TKeyId>;
-    remove(id: TKeyId): Promise<void>;
-}
+import { KeyValueIndex } from "./keyValueIndex.js";
 
 export async function createIndexFolder<TValueId>(
     folderPath: string,
@@ -96,19 +89,45 @@ export interface TextIndex<TTextId = any, TSourceId = any> {
     text(): IterableIterator<string>;
     ids(): AsyncIterableIterator<TTextId>;
     entries(): AsyncIterableIterator<TextBlock<TSourceId>>;
+    /**
+     * Get the sourceIds (if any) for the text exactly matching the given value
+     * For fuzzy matching, use getNearest
+     * @param value
+     */
     get(value: string): Promise<TSourceId[] | undefined>;
     getById(id: TTextId): Promise<TSourceId[] | undefined>;
     getByIds(ids: TTextId[]): Promise<(TSourceId[] | undefined)[]>;
     getId(value: string): Promise<TTextId | undefined>;
     getIds(values: string[]): Promise<(TTextId | undefined)[]>;
     getText(id: TTextId): Promise<string | undefined>;
+    // TODO: rename put to "add"
     put(value: string, postings?: TSourceId[]): Promise<TTextId>;
     putMultiple(values: TextBlock<TSourceId>[]): Promise<TTextId[]>;
+    /**
+     * Add source Ids for the given text Id
+     * @param id
+     * @param postings
+     */
+    addSources(id: TTextId, postings: TSourceId[]): Promise<void>;
+    /**
+     * Get the sourceIds for the texts nearest to the given value
+     * Ids are returned in sorted order, with duplicates removed
+     * @param value
+     * @param maxMatches
+     * @param minScore
+     */
     getNearest(
         value: string,
         maxMatches?: number,
         minScore?: number,
     ): Promise<TSourceId[]>;
+    /**
+     * Get the sourceIds for the texts nearest to the given values
+     * Ids are returned in sorted order, with duplicates removed
+     * @param values
+     * @param maxMatches
+     * @param minScore
+     */
     getNearestMultiple(
         values: string[],
         maxMatches?: number,
@@ -133,16 +152,44 @@ export interface TextIndex<TTextId = any, TSourceId = any> {
         maxMatches: number,
         minScore?: number,
     ): Promise<ScoredItem<TSourceId[]>[]>;
+    /**
+     * Return the TextIds of the text nearest to the given value.
+     * @param value
+     * @param maxMatches
+     * @param minScore
+     */
     getNearestText(
-        text: string,
+        value: string,
         maxMatches: number,
         minScore?: number,
     ): Promise<TTextId[]>;
+    /**
+     * Return the TextIds of the texts nearest to the given values.
+     * @param value
+     * @param maxMatches
+     * @param minScore
+     */
+    getNearestTextMultiple(
+        values: string[],
+        maxMatches: number,
+        minScore?: number,
+    ): Promise<TTextId[]>;
+    /**
+     * Return the TextIds of the nearest matching text + their scores
+     * @param value
+     * @param maxMatches
+     * @param minScore
+     */
     nearestNeighborsText(
         value: string,
         maxMatches: number,
         minScore?: number,
     ): Promise<ScoredItem<TTextId>[]>;
+    nearestNeighborsPairs(
+        value: string,
+        maxMatches: number,
+        minScore?: number,
+    ): Promise<ScoredItem<TextBlock<TSourceId>>[]>;
     remove(textId: TTextId, postings: TSourceId | TSourceId[]): Promise<void>;
 }
 
@@ -153,6 +200,10 @@ export type TextIndexSettings = {
     embeddingModel?: TextEmbeddingModel | undefined;
 };
 
+// There are *three* important types here:
+// - entries are always strings; typically words or sentences
+// - postings are arrays of TSourceIds; typically unique IDs for other objects
+// - TextId is a string that uniquely identifies an (entry, postings) pair internally
 export async function createTextIndex<TSourceId = any>(
     settings: TextIndexSettings,
     folderPath: string,
@@ -168,7 +219,7 @@ export async function createTextIndex<TSourceId = any>(
             folderSettings,
             fSys,
         ));
-    const textIdMap = await loadTextIdMap();
+    const textIdMap: Map<string, TextId> = await loadTextIdMap();
     const postingFolder = await createIndexFolder<TSourceId>(
         path.join(folderPath, "postings"),
         folderSettings,
@@ -197,13 +248,16 @@ export async function createTextIndex<TSourceId = any>(
         getText,
         put,
         putMultiple,
+        addSources,
         getNearest,
         getNearestHits,
         getNearestHitsMultiple,
         getNearestMultiple,
         getNearestText,
+        getNearestTextMultiple,
         nearestNeighbors,
         nearestNeighborsText,
+        nearestNeighborsPairs,
         remove,
     };
 
@@ -281,10 +335,14 @@ export async function createTextIndex<TSourceId = any>(
         return ids;
     }
 
+    function addSources(textId: TextId, sourceIds: TSourceId[]): Promise<void> {
+        return updatePostings(textId, sourceIds);
+    }
+
     async function addPostings(
         text: string,
         postings?: TSourceId[],
-    ): Promise<string> {
+    ): Promise<TextId> {
         let textId = await entriesFolder.put(text);
         const tasks = [];
         if (postings && postings.length > 0) {
@@ -453,6 +511,20 @@ export async function createTextIndex<TSourceId = any>(
         return matchedIds;
     }
 
+    async function getNearestTextMultiple(
+        values: string[],
+        maxMatches?: number,
+        minScore?: number,
+    ): Promise<TextId[]> {
+        const matches = await asyncArray.mapAsync(
+            values,
+            settings.concurrency,
+            (t) => getNearestText(t, maxMatches, minScore),
+        );
+
+        return intersectUnionMultiple(...matches) ?? [];
+    }
+
     async function nearestNeighbors(
         value: string,
         maxMatches: number,
@@ -481,7 +553,7 @@ export async function createTextIndex<TSourceId = any>(
             minScore,
         );
         // Also do an exact match
-        let textId = textToId(value);
+        let textId: TextId | undefined = textToId(value);
         if (textId) {
             // Remove prior match
             const pos = matches.findIndex((m) => m.item === textId);
@@ -493,17 +565,44 @@ export async function createTextIndex<TSourceId = any>(
         return matches;
     }
 
+    async function nearestNeighborsPairs(
+        query: string,
+        maxMatches: number,
+        minScore?: number,
+    ): Promise<ScoredItem<TextBlock<TSourceId>>[]> {
+        return removeUndefined(
+            await asyncArray.mapAsync(
+                await nearestNeighborsText(query, maxMatches, minScore),
+                settings.concurrency,
+                async (m) => {
+                    const value = await entriesFolder.get(m.item);
+                    if (!value) return;
+                    const sourceIds = await postingFolder.get(m.item);
+                    if (!sourceIds) return;
+                    return {
+                        score: m.score,
+                        item: {
+                            type: TextBlockType.Sentence,
+                            value,
+                            sourceIds,
+                        },
+                    };
+                },
+            ),
+        );
+    }
+
     async function loadTextIdMap(): Promise<Map<string, TextId>> {
         const map = new Map<string, TextId>();
-        const allIds = await entriesFolder.allNames();
+        const allIds: TextId[] = await entriesFolder.allNames();
         if (allIds.length > 0) {
             // Load all text entries
-            const allText = await asyncArray.mapAsync(
+            const allText: (string | undefined)[] = await asyncArray.mapAsync(
                 allIds,
                 settings.concurrency,
                 (id) => entriesFolder.get(id),
             );
-            if (!allText || allIds.length != allText.length) {
+            if (!allText || allIds.length !== allText.length) {
                 throw Error(`TextIndex is corrupt: ${folderPath}`);
             }
             // And now map the text to its ids
@@ -655,76 +754,6 @@ export async function removeSemanticIndexFolder(
     await removeDir(path.join(folderPath, "embeddings"), fSys);
 }
 
-export interface KnowledgeStore<T, TId = any> {
-    readonly settings: TextIndexSettings;
-    readonly store: ObjectFolder<T>;
-    readonly sequence: TemporalLog<TId, TId[]>;
-    entries(): AsyncIterableIterator<T>;
-    get(id: TId): Promise<T | undefined>;
-    getMultiple(ids: TId[]): Promise<T[]>;
-    add(item: T, id?: TId): Promise<TId>;
-    addNext(items: T[], timestamp?: Date | undefined): Promise<TId[]>;
-}
-
-export async function createKnowledgeStore<T>(
-    settings: TextIndexSettings,
-    rootPath: string,
-    folderSettings?: ObjectFolderSettings,
-    fSys?: FileSystem,
-): Promise<KnowledgeStore<T, string>> {
-    type TId = string;
-    const [sequence, entries] = await Promise.all([
-        createTemporalLog<TId[]>(
-            { concurrency: settings.concurrency },
-            path.join(rootPath, "sequence"),
-            folderSettings,
-            fSys,
-        ),
-        createObjectFolder<T>(
-            path.join(rootPath, "entries"),
-            folderSettings,
-            fSys,
-        ),
-    ]);
-
-    return {
-        settings,
-        store: entries,
-        sequence,
-        entries: entries.allObjects,
-        get: entries.get,
-        getMultiple,
-        add,
-        addNext,
-    };
-
-    async function getMultiple(ids: TId[]): Promise<T[]> {
-        const items = await asyncArray.mapAsync(
-            ids,
-            settings.concurrency,
-            (id) => entries.get(id),
-        );
-        return removeUndefined(items);
-    }
-
-    async function addNext(
-        items: T[],
-        timestamp?: Date | undefined,
-    ): Promise<TId[]> {
-        const itemIds = await asyncArray.mapAsync(items, 1, (e) =>
-            entries.put(e),
-        );
-
-        itemIds.sort();
-        await sequence.put(itemIds, timestamp);
-        return itemIds;
-    }
-
-    async function add(item: T, id?: TId): Promise<TId> {
-        return id ? id : await entries.put(item, id);
-    }
-}
-
 export interface TermSet {
     has(term: string): boolean;
     put(term: string): void;
@@ -747,6 +776,7 @@ export function createTermSet(caseSensitive: boolean = false) {
 }
 
 export interface TermMap {
+    size(): number;
     get(term: string): string | undefined;
     put(term: string, value: string): void;
 }
@@ -754,6 +784,9 @@ export interface TermMap {
 export function createTermMap(caseSensitive: boolean = false) {
     const map = new Map<string, string>();
     return {
+        size() {
+            return map.size;
+        },
         get(term: string) {
             return map.get(prepareTerm(term));
         },

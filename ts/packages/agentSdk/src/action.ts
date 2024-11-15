@@ -7,7 +7,7 @@ import { Entity } from "./memory.js";
 export interface AppAction {
     actionName: string;
     translatorName?: string;
-    parameters: Record<string, unknown>; // the type of the parameters are defined by the AppAgent
+    parameters?: Record<string, unknown> | undefined; // the type of the parameters are defined by the AppAgent
 }
 
 export type ActionResultError = {
@@ -20,6 +20,7 @@ export type ActionResultSuccessNoDisplay = {
     entities: Entity[];
     dynamicDisplayId?: string | undefined;
     dynamicDisplayNextRefreshMs?: number | undefined;
+    additionalInstructions?: string[] | undefined;
     error?: undefined;
 };
 
@@ -29,6 +30,7 @@ export type ActionResultSuccess = {
     entities: Entity[];
     dynamicDisplayId?: string | undefined;
     dynamicDisplayNextRefreshMs?: number | undefined;
+    additionalInstructions?: string[] | undefined;
     error?: undefined;
 };
 

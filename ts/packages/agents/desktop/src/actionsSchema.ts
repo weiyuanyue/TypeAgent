@@ -10,7 +10,8 @@ export type DesktopActions =
     | SwitchToWindowAction
     | SetVolumeAction
     | RestoreVolumeAction
-    | MuteVolumeAction;
+    | MuteVolumeAction
+    | SetWallpaperAction;
 
 // Launches a new program window on a Windows Desktop
 // Example:
@@ -78,7 +79,6 @@ export type SetVolumeAction = {
 
 export type RestoreVolumeAction = {
     actionName: "restoreVolume";
-    parameters: {};
 };
 
 export type MuteVolumeAction = {
@@ -88,6 +88,13 @@ export type MuteVolumeAction = {
     };
 };
 
+export type SetWallpaperAction = {
+    actionName: "setWallpaper";
+    parameters: {
+        filePath?: string; // The path to the file
+        url?: string; // The url to the image
+    };
+};
 export type KnownPrograms =
     | "chrome"
     | "word"

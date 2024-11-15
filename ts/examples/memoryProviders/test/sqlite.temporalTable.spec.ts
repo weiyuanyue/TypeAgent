@@ -3,7 +3,7 @@
 
 import * as sqlite from "better-sqlite3";
 import { composers, ensureTestDir, testFilePath } from "./testCore.js";
-import { createDb } from "../src/sqlite/common.js";
+import { createDatabase } from "../src/sqlite/common.js";
 import { createTemporalLogTable } from "../src/sqlite/temporalTable.js";
 
 describe("sqlite.temporalTable", () => {
@@ -11,7 +11,7 @@ describe("sqlite.temporalTable", () => {
     let db: sqlite.Database | undefined;
     beforeAll(async () => {
         await ensureTestDir();
-        db = await createDb(testFilePath("temporal.db"), true);
+        db = await createDatabase(testFilePath("temporal.db"), true);
     });
     afterAll(() => {
         if (db) {
@@ -22,7 +22,12 @@ describe("sqlite.temporalTable", () => {
     test(
         "addIds",
         async () => {
-            const table = createTemporalLogTable(db!, "idLog", "INTEGER");
+            const table = createTemporalLogTable(
+                db!,
+                "idLog",
+                "INTEGER",
+                "TEXT",
+            );
             const blocks = composers();
             let timestamps: Date[] = [];
             let allIds: number[] = [];
@@ -36,6 +41,8 @@ describe("sqlite.temporalTable", () => {
                 expect(ids).toHaveLength(blocks.length);
                 allIds.push(...ids);
             }
+            const size = await table.size();
+            expect(size).toEqual(allIds.length);
 
             const windowLength = 8;
             const latest = [...table.iterateNewest(windowLength)];
@@ -58,4 +65,24 @@ describe("sqlite.temporalTable", () => {
         },
         testTimeout,
     );
+    test("addIds_number", async () => {
+        const table = createTemporalLogTable<number, number>(
+            db!,
+            "idLog_number",
+            "INTEGER",
+            "INTEGER",
+        );
+        let ids = [1, 2, 3, 4, 5];
+        let timestamp = new Date();
+        for (const id of ids) {
+            table.addSync(id, timestamp);
+        }
+        ids = [6, 7, 8];
+        timestamp = new Date();
+        for (const id of ids) {
+            table.addSync(id, timestamp);
+        }
+        const rows = await table.getNewest(1);
+        expect(rows.length).toBeGreaterThan(0);
+    });
 });

@@ -68,7 +68,7 @@ export function matchedValues(
                 } else {
                     entry = { transformInfo: info, text: [match] };
                     matchedTransformText.set(key, entry);
-                    if (config.enableWildcard && part.wildcard) {
+                    if (config.enableWildcard && part.wildcardMode) {
                         wildcardNames.add(key);
                     }
                 }
@@ -142,10 +142,6 @@ export function createActionProps(
         setObjectProperty(result, "actionProps", name, value);
     }
     const actionProps = result.actionProps;
-    if (actionProps.parameters === undefined) {
-        actionProps.parameters = {};
-    }
-
     // validate fullActionName
     if (Array.isArray(actionProps)) {
         actionProps.forEach((actionProp) => {
